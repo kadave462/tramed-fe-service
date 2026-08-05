@@ -136,6 +136,9 @@ function Dashboard() {
   // needs the value living directly on each row to plot it as a bar.
   const expiringWithPct = expiringStock.map((row) => ({
     ...row,
+    // backend returns a full ISO timestamp (e.g. "2027-01-28T00:00:00.000Z")
+    // for what's really just a date — drop everything from "T" onward
+    expirationDate: row.expirationDate?.split('T')[0],
     pctRemaining: row.initialQuantity ? (row.quantity / row.initialQuantity) * 100 : 0,
   }));
 
