@@ -31,8 +31,14 @@ function Dashboard() {
 
   //  expiring stock has its OWN date control (not the shared from/to above)
   //  — it's not a date RANGE, it's a single cutoff: "show lots expiring on
-  //  or before this date." Defaults to today.
-  const [expiringBefore, setExpiringBefore] = useState(() => new Date().toISOString().slice(0, 10));
+  //  or before this date." Defaults to 30 days out (not just today), so the
+  //  panel opens showing something worth planning for, not only what's
+  //  already expired.
+  const [expiringBefore, setExpiringBefore] = useState(() => {
+    const in30Days = new Date();
+    in30Days.setDate(in30Days.getDate() + 30);
+    return in30Days.toISOString().slice(0, 10);
+  });
   const [expiringStock, setExpiringStock] = useState([]);
   const [expiringLoading, setExpiringLoading] = useState(true);
   const [expiringError, setExpiringError] = useState(null);
