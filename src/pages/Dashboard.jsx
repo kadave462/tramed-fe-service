@@ -217,7 +217,7 @@ function Dashboard() {
     { key: 'initialQuantity', label: 'Initial qty' },
     { key: 'liveQuantity', label: 'Live qty' },
     { key: 'pctRemaining', label: '% remaining' },
-    { key: 'depletionRatePerDay', label: 'Depletion rate' },
+    { key: 'depletionRatePerDay', label: '% of lot sold / day' },
     { key: 'idLot', label: 'Documented date' },
     { key: 'avgPrice', label: 'Avg price' },
     { key: 'totalRevenue', label: 'Revenue' },
@@ -429,7 +429,7 @@ function Dashboard() {
           100 rows doesn't belong squeezed into a ~400px grid column the way
           the charts do; it needs the whole page width to stay readable. */}
       <section className="card">
-        <h2>Top movers — units sold</h2>
+        <h2>Top movers — ranked by % of current lot sold per day</h2>
         {topMoversLoading && <p>Loading…</p>}
         {topMoversError && <p>Error: {topMoversError}</p>}
         {!topMoversLoading && !topMoversError && topMovers.length === 0 && (
