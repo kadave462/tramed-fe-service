@@ -153,12 +153,20 @@ function Dashboard() {
   // returns top-movers ordered by units sold descending, so index 0 is
   // always the #1 mover. Sorting the table by another column re-orders
   // what's on screen but never renumbers this column.
-  const topMoversRanked = topMovers.map((row, i) => ({
-    ...row,
-    rank: i + 1,
-    pctRemaining: row.initialQuantity ? (row.liveQuantity / row.initialQuantity) * 100 : null,
-    avgPrice: row.totalQuantity ? row.totalRevenue / row.totalQuantity : null,
-  }));
+  // rows with no idLot (no matching stock lot at all — a LEFT JOIN miss on
+  // the backend, confirmed via the pharmacy's local database to mean
+  // "genuinely no stock lot," not a sync gap) are dropped entirely rather
+  // than shown with "—" placeholders. rank still reflects each row's
+  // original standing among ALL top movers, so numbers can skip after a
+  // hidden row — that's intentional, not a bug.
+  const topMoversRanked = topMovers
+    .map((row, i) => ({
+      ...row,
+      rank: i + 1,
+      pctRemaining: row.initialQuantity ? (row.liveQuantity / row.initialQuantity) * 100 : null,
+      avgPrice: row.totalQuantity ? row.totalRevenue / row.totalQuantity : null,
+    }))
+    .filter((row) => row.idLot != null);
 
   const moverColumns = [
     { key: 'productName', label: 'Product' },
