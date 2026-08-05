@@ -29,11 +29,10 @@ function Dashboard() {
   const [topMoversLoading, setTopMoversLoading] = useState(true);
   const [topMoversError, setTopMoversError] = useState(null);
 
-  //  expiring stock has its OWN date control (not the shared from/to above)
-  //  — it's not a date RANGE, it's a single cutoff: "show lots expiring on
-  //  or before this date." Defaults to 30 days out (not just today), so the
-  //  panel opens showing something worth planning for, not only what's
-  //  already expired.
+  //  expiring stock has its OWN date range (not the shared from/to above) —
+  //  defaults to today through 30 days out, so the panel opens showing
+  //  what's coming up, not already-expired stock or the entire future.
+  const [expiringAfter, setExpiringAfter] = useState(() => new Date().toISOString().slice(0, 10));
   const [expiringBefore, setExpiringBefore] = useState(() => {
     const in30Days = new Date();
     in30Days.setDate(in30Days.getDate() + 30);
@@ -103,14 +102,16 @@ function Dashboard() {
     loadTopLists();
   }, [from, to]);
 
-  //  independent of everything above — this endpoint takes a single cutoff
-  //  date, not a from/to range, so it gets its own effect keyed on just
-  //  [expiringBefore] instead of piggybacking on the shared date range.
+  //  independent of everything above — this is its own date range, not the
+  //  shared from/to, so it gets its own effect keyed on
+  //  [expiringAfter, expiringBefore] instead of piggybacking on the others.
   useEffect(() => {
     async function loadExpiringStock() {
       try {
         setExpiringLoading(true);
-        const res = await fetch(`${API}/api/v1/analytics/expiring-stock?before=${expiringBefore}`);
+        const res = await fetch(
+          `${API}/api/v1/analytics/expiring-stock?after=${expiringAfter}&before=${expiringBefore}`
+        );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         setExpiringStock(data);
@@ -121,7 +122,7 @@ function Dashboard() {
       }
     }
     loadExpiringStock();
-  }, [expiringBefore]);
+  }, [expiringAfter, expiringBefore]);
 
   // Part A — KPI: derived from state already being fetched for the chart,
   // not a new request. .reduce() walks the array once, building a running total.
@@ -254,10 +255,16 @@ function Dashboard() {
         <section className="card">
           <h2>Expiring stock</h2>
 
-          {/* local to just this panel, not the shared date range above —
-              a single cutoff date, not a from/to span */}
+          {/* local to just this panel, not the shared date range above */}
           <div className="controls">
-            <label htmlFor="expiring-before" className="kpi-label">Expiring on or before</label>
+            <label htmlFor="expiring-after" className="kpi-label">Expiring between</label>
+            <input
+              id="expiring-after"
+              type="date"
+              value={expiringAfter}
+              onChange={(e) => setExpiringAfter(e.target.value)}
+            />
+            <label htmlFor="expiring-before" className="kpi-label">and</label>
             <input
               id="expiring-before"
               type="date"
