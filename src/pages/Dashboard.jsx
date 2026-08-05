@@ -30,13 +30,13 @@ function Dashboard() {
   const [topMoversError, setTopMoversError] = useState(null);
 
   //  expiring stock has its OWN date range (not the shared from/to above) —
-  //  defaults to today through 30 days out, so the panel opens showing
+  //  defaults to today through 1 year out, so the panel opens showing
   //  what's coming up, not already-expired stock or the entire future.
   const [expiringAfter, setExpiringAfter] = useState(() => new Date().toISOString().slice(0, 10));
   const [expiringBefore, setExpiringBefore] = useState(() => {
-    const in30Days = new Date();
-    in30Days.setDate(in30Days.getDate() + 30);
-    return in30Days.toISOString().slice(0, 10);
+    const oneYearOut = new Date();
+    oneYearOut.setFullYear(oneYearOut.getFullYear() + 1);
+    return oneYearOut.toISOString().slice(0, 10);
   });
   const [expiringStock, setExpiringStock] = useState([]);
   const [expiringLoading, setExpiringLoading] = useState(true);
