@@ -232,6 +232,21 @@ table {
   font-size: 14px;
 }
 
+/* wraps a table that's taller than it is wide (e.g. 50 rows) — caps its
+   height and scrolls the body, while the header row stays pinned via
+   position: sticky so column labels stay visible the whole time */
+.table-scroll {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.table-scroll thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
 th {
   text-align: left;
   font-size: 12px;

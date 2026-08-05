@@ -29,6 +29,10 @@ function Dashboard() {
   const [topMoversLoading, setTopMoversLoading] = useState(true);
   const [topMoversError, setTopMoversError] = useState(null);
 
+  const [slowMovers, setSlowMovers] = useState([]);
+  const [slowMoversLoading, setSlowMoversLoading] = useState(true);
+  const [slowMoversError, setSlowMoversError] = useState(null);
+
   //  runs once on first appearance, THEN again any time from/to/groupBy change
   //  ask the server, wait for the answer
   //  remember the answer (setRevenue / setLoading)
@@ -52,38 +56,45 @@ function Dashboard() {
     loadRevenue();
   }, [from, to, groupBy]); // re-run whenever any of these change
 
-  //  fetches top-products, top-payers, AND top-movers together via
-  //  Promise.all — all three requests fire at once instead of one waiting
-  //  for the previous one. Only depends on [from, to], not groupBy — none
-  //  of these three endpoints take a groupBy param.
+  //  fetches top-products, top-payers, top-movers, AND slow-movers together
+  //  via Promise.all — all four requests fire at once instead of one
+  //  waiting for the previous one. Only depends on [from, to], not
+  //  groupBy — none of these four endpoints take a groupBy param.
   useEffect(() => {
     async function loadTopLists() {
       try {
         setTopProductsLoading(true);
         setTopPayersLoading(true);
         setTopMoversLoading(true);
-        const [productsRes, payersRes, moversRes] = await Promise.all([
+        setSlowMoversLoading(true);
+        const [productsRes, payersRes, moversRes, slowRes] = await Promise.all([
           fetch(`${API}/api/v1/analytics/top-products?from=${from}&to=${to}`),
           fetch(`${API}/api/v1/analytics/top-payers?from=${from}&to=${to}`),
           fetch(`${API}/api/v1/analytics/top-movers?from=${from}&to=${to}&limit=50`),
+          fetch(`${API}/api/v1/analytics/slow-movers?from=${from}&to=${to}`),
         ]);
         if (!productsRes.ok) throw new Error(`HTTP ${productsRes.status}`);
         if (!payersRes.ok) throw new Error(`HTTP ${payersRes.status}`);
         if (!moversRes.ok) throw new Error(`HTTP ${moversRes.status}`);
+        if (!slowRes.ok) throw new Error(`HTTP ${slowRes.status}`);
         const productsData = await productsRes.json();
         const payersData = await payersRes.json();
         const moversData = await moversRes.json();
+        const slowData = await slowRes.json();
         setTopProducts(productsData);
         setTopPayers(payersData);
         setTopMovers(moversData);
+        setSlowMovers(slowData);
       } catch (err) {
         setTopProductsError(err.message);
         setTopPayersError(err.message);
         setTopMoversError(err.message);
+        setSlowMoversError(err.message);
       } finally {
         setTopProductsLoading(false);
         setTopPayersLoading(false);
         setTopMoversLoading(false);
+        setSlowMoversLoading(false);
       }
     }
     loadTopLists();
@@ -208,6 +219,37 @@ function Dashboard() {
             </>
           )}
         </section>
+
+        <section className="card">
+          <h2>Slow movers</h2>
+          {!slowMoversLoading && !slowMoversError && slowMovers.length === 0 && (
+            <p className="kpi-label">No data for this range.</p>
+          )}
+          {!slowMoversLoading && !slowMoversError && slowMovers.length > 0 && (
+            <>
+              {/* barKey is totalQuantity here, not totalRevenue — the ranking
+                  metric IS units sold, so the bar height needs to show that,
+                  with revenue riding along as the secondary detail instead */}
+              <TopBarChart
+                data={slowMovers}
+                xKey="productName"
+                barKey="totalQuantity"
+                detailKey="totalRevenue"
+                detailLabel="Revenue"
+              />
+              <ul className="list-plain">
+                {slowMovers.map((row) => (
+                  <li key={row.productName} className="list-row">
+                    {row.productName}: {row.totalQuantity.toLocaleString('en-US')} units
+                    {' '}({row.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {slowMoversLoading && <p>Loading…</p>}
+          {slowMoversError && <p>Error: {slowMoversError}</p>}
+        </section>
       </div>
 
       {/* Full-width panel, deliberately OUTSIDE .dashboard-grid — a table of
@@ -221,6 +263,7 @@ function Dashboard() {
           <p className="kpi-label">No data for this range.</p>
         )}
         {!topMoversLoading && !topMoversError && topMovers.length > 0 && (
+          <div className="table-scroll">
           <table>
             <thead>
               <tr>
@@ -275,6 +318,7 @@ function Dashboard() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </div>
