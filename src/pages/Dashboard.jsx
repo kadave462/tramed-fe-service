@@ -212,6 +212,7 @@ function Dashboard() {
     .map((row, i) => ({ ...row, rank: i + 1 }));
 
   const moverColumns = [
+    { key: 'itemId', label: 'Item ID' },
     { key: 'productName', label: 'Product' },
     { key: 'totalQuantity', label: 'Units sold' },
     { key: 'initialQuantity', label: 'Initial qty' },
@@ -437,7 +438,7 @@ function Dashboard() {
         )}
         {!topMoversLoading && !topMoversError && topMovers.length > 0 && (
           <div className="table-scroll">
-          <table>
+          <table className="table-compact">
             <thead>
               <tr>
                 <th>#</th>
@@ -459,6 +460,7 @@ function Dashboard() {
                 return (
                   <tr key={row.productName}>
                     <td>{row.rank}</td>
+                    <td>{row.itemId ?? '—'}</td>
                     <td>{row.productName}</td>
                     <td>{row.totalQuantity.toLocaleString('en-US')}</td>
                     <td>{row.initialQuantity ?? '—'}</td>

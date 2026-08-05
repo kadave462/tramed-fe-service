@@ -291,6 +291,23 @@ td:not(:first-child) {
   font-weight: 600;
 }
 
+/* Top movers grew a 10th/11th column (Item ID, % of lot sold/day) on top
+   of the original set — shrinking text/padding here (not on `table`
+   globally, so the Forecast page table is untouched) buys back enough
+   width for all of them to fit without excessive horizontal scrolling. */
+.table-compact {
+  font-size: 12px;
+}
+
+.table-compact th {
+  font-size: 11px;
+  padding: 6px 8px;
+}
+
+.table-compact td {
+  padding: 6px 8px;
+}
+
 tr:last-child td {
   border-bottom: none;
 }
