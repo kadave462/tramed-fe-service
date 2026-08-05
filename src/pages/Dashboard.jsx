@@ -4,6 +4,25 @@ import TopBarChart from '../components/TopBarChart';
 
 const API = 'https://david-api-la1t.onrender.com';
 
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+// below this many estimated days-of-stock-left (at the current depletion
+// pace), a lot gets flagged "Reorder" — replaces a flat "% remaining"
+// cutoff, which couldn't tell a lot that's genuinely about to run out from
+// one that's just small and barely selling (see TRIALGIC: 29% remaining
+// but ~9 months to get there — not urgent at that pace).
+const REORDER_DAYS_THRESHOLD = 14;
+
+// idLot ("Documented date") is a 6-digit YYMMDD string, e.g. "251112" =
+// 2025-11-12 — confirmed against the pharmacy's own sale records.
+function parseDocumentedDate(idLot) {
+  if (!idLot || idLot.length !== 6) return null;
+  const yy = parseInt(idLot.slice(0, 2), 10);
+  const mm = parseInt(idLot.slice(2, 4), 10);
+  const dd = parseInt(idLot.slice(4, 6), 10);
+  if (Number.isNaN(yy) || Number.isNaN(mm) || Number.isNaN(dd)) return null;
+  return new Date(2000 + yy, mm - 1, dd);
+}
+
 function Dashboard() {
   //  the 3 memory slots
   const [revenue, setRevenue] = useState([]);    // the data — starts empty
@@ -149,24 +168,48 @@ function Dashboard() {
     pctRemaining: row.initialQuantity ? (row.quantity / row.initialQuantity) * 100 : 0,
   }));
 
-  // rank is assigned here, BEFORE any client-side sort — the API already
-  // returns top-movers ordered by units sold descending, so index 0 is
-  // always the #1 mover. Sorting the table by another column re-orders
-  // what's on screen but never renumbers this column.
+  // "Units sold" totals aren't comparable across products as a speed
+  // ranking — a tablet product racks up quantity in individual pills while
+  // a syrup racks it up in whole bottles (confirmed against the pharmacy's
+  // own sale records), so raw quantity conflates "sells in small units"
+  // with "sells fast". depletionRatePerDay fixes both that AND the
+  // old-lot problem: it's the % of the CURRENT lot consumed per day since
+  // it was documented — a plain percentage, so a pill lot and a bottle lot
+  // are directly comparable, and a slow-but-heavily-depleted lot (TRIALGIC:
+  // 29% remaining over ~9 months) no longer reads as "fast" just because
+  // little is left. daysRemaining (lot size ÷ that pace) drives the
+  // Reorder flag below instead of a flat % cutoff.
+  //
   // rows with no idLot (no matching stock lot at all — a LEFT JOIN miss on
   // the backend, confirmed via the pharmacy's local database to mean
   // "genuinely no stock lot," not a sync gap) are dropped entirely rather
-  // than shown with "—" placeholders. rank still reflects each row's
-  // original standing among ALL top movers, so numbers can skip after a
-  // hidden row — that's intentional, not a bug.
+  // than shown with "—" placeholders.
+  //
+  // rank is assigned AFTER sorting by depletion rate — #1 is the fastest
+  // mover by this measure, not the highest raw quantity. Sorting the table
+  // by another column re-orders what's on screen but never renumbers this
+  // column, same as before.
   const topMoversRanked = topMovers
-    .map((row, i) => ({
-      ...row,
-      rank: i + 1,
-      pctRemaining: row.initialQuantity ? (row.liveQuantity / row.initialQuantity) * 100 : null,
-      avgPrice: row.totalQuantity ? row.totalRevenue / row.totalQuantity : null,
-    }))
-    .filter((row) => row.idLot != null);
+    .filter((row) => row.idLot != null)
+    .map((row) => {
+      const pctRemaining = row.initialQuantity ? (row.liveQuantity / row.initialQuantity) * 100 : null;
+      const avgPrice = row.totalQuantity ? row.totalRevenue / row.totalQuantity : null;
+
+      const documentedDate = parseDocumentedDate(row.idLot);
+      let depletionRatePerDay = null;
+      let daysRemaining = null;
+      if (documentedDate && row.initialQuantity) {
+        const daysSince = Math.max(1, Math.round((Date.now() - documentedDate.getTime()) / MS_PER_DAY));
+        const unitsSold = Math.max(0, row.initialQuantity - row.liveQuantity);
+        const unitsPerDay = unitsSold / daysSince;
+        depletionRatePerDay = (unitsSold / row.initialQuantity / daysSince) * 100;
+        daysRemaining = unitsPerDay > 0 ? row.liveQuantity / unitsPerDay : null;
+      }
+
+      return { ...row, pctRemaining, avgPrice, depletionRatePerDay, daysRemaining };
+    })
+    .sort((a, b) => (b.depletionRatePerDay ?? -1) - (a.depletionRatePerDay ?? -1))
+    .map((row, i) => ({ ...row, rank: i + 1 }));
 
   const moverColumns = [
     { key: 'productName', label: 'Product' },
@@ -174,6 +217,7 @@ function Dashboard() {
     { key: 'initialQuantity', label: 'Initial qty' },
     { key: 'liveQuantity', label: 'Live qty' },
     { key: 'pctRemaining', label: '% remaining' },
+    { key: 'depletionRatePerDay', label: 'Depletion rate' },
     { key: 'idLot', label: 'Documented date' },
     { key: 'avgPrice', label: 'Avg price' },
     { key: 'totalRevenue', label: 'Revenue' },
@@ -407,11 +451,10 @@ function Dashboard() {
             </thead>
             <tbody>
               {sortedMovers.map((row) => {
-                // % remaining = current lot quantity / what that lot started
-                // with. Null when a product has sales but no matching stock
-                // lot (the LEFT JOIN on the backend found nothing) — shown as
-                // "—" rather than crashing on a null initialQuantity.
-                const low = row.pctRemaining !== null && row.pctRemaining < 40;
+                // Reorder now fires off estimated days-of-stock-left at the
+                // lot's actual depletion pace, not a flat % cutoff — see the
+                // comment above topMoversRanked for why (TRIALGIC).
+                const low = row.daysRemaining !== null && row.daysRemaining < REORDER_DAYS_THRESHOLD;
 
                 return (
                   <tr key={row.productName}>
@@ -420,10 +463,11 @@ function Dashboard() {
                     <td>{row.totalQuantity.toLocaleString('en-US')}</td>
                     <td>{row.initialQuantity ?? '—'}</td>
                     <td>{row.liveQuantity ?? '—'}</td>
+                    <td>{row.pctRemaining !== null ? `${row.pctRemaining.toFixed(0)}%` : '—'}</td>
                     {/* red is never the only signal — "Reorder" is the real
                         flag; color just makes it faster to spot at a glance */}
                     <td className={low ? 'pct-low' : ''}>
-                      {row.pctRemaining !== null ? `${row.pctRemaining.toFixed(0)}%` : '—'}
+                      {row.depletionRatePerDay !== null ? `${row.depletionRatePerDay.toFixed(2)}%/day` : '—'}
                       {low && ' — Reorder'}
                     </td>
                     <td>{row.idLot ?? '—'}</td>
