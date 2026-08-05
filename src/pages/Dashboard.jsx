@@ -238,12 +238,27 @@ function Dashboard() {
                 detailLabel="Revenue"
               />
               <ul className="list-plain">
-                {slowMovers.map((row) => (
-                  <li key={row.productName} className="list-row">
-                    {row.productName}: {row.totalQuantity.toLocaleString('en-US')} units
-                    {' '}({row.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
-                  </li>
-                ))}
+                {slowMovers.map((row) => {
+                  // same stock math as the Top Movers table — initial_quantity
+                  // is what actually answers "how many units were there to
+                  // begin with," which is the whole point of this addition
+                  const pctRemaining =
+                    row.initialQuantity ? (row.liveQuantity / row.initialQuantity) * 100 : null;
+                  const low = pctRemaining !== null && pctRemaining < 30;
+
+                  return (
+                    <li key={row.productName} className="list-row">
+                      {row.productName}: {row.totalQuantity.toLocaleString('en-US')} sold
+                      {' '}(initial {row.initialQuantity ?? '—'}, live {row.liveQuantity ?? '—'}
+                      {', '}
+                      <span className={low ? 'pct-low' : ''}>
+                        {pctRemaining !== null ? `${pctRemaining.toFixed(0)}% left` : '— left'}
+                        {low && ' — Reorder'}
+                      </span>
+                      )
+                    </li>
+                  );
+                })}
               </ul>
             </>
           )}
