@@ -269,8 +269,13 @@ td:not(:first-child) {
 }
 
 /* status color (critical), reserved — never reused as a categorical series
-   color. Paired with the "— Reorder" text in the cell itself, never color alone. */
-.pct-low {
+   color. Paired with a text label in the cell itself, never color alone.
+   Two names, same style: .pct-low flags "running out" (Top movers table),
+   .pct-alert flags "expiring with too much left" (Expiring stock) — opposite
+   directions on the same 0-100% scale, so they can't share one class name
+   without the name lying about which direction is bad. */
+.pct-low,
+.pct-alert {
   color: #d03b3b;
   font-weight: 600;
 }

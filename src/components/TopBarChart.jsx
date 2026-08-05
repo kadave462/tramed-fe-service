@@ -12,21 +12,30 @@ import { formatCompact } from '../utils/format';
 
 const axisTickStyle = { fill: '#898781', fontSize: 12 };
 
+const defaultMoneyFormat = (value) =>
+  value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// detailKey can point at a number (totalQuantity, totalOrders — existing
+// usages) or a string (expirationDate — the new one). Numbers get comma
+// formatting; strings can't call toLocaleString the way numbers can, so
+// they're shown as-is.
+const defaultDetailFormat = (value) => (typeof value === 'number' ? value.toLocaleString('en-US') : value);
+
 // Custom tooltip content, instead of Tooltip's built-in `formatter`. The
 // built-in formatter only ever sees the single field plotted on the Bar
 // (barKey) — it has no way to reach a sibling field on the same row. This
 // function receives the whole data row (payload[0].payload), so it can show
-// a second, unplotted field (detailKey) alongside the revenue number.
-function renderTooltip({ active, payload, label, detailKey, detailLabel }) {
+// a second, unplotted field (detailKey) alongside the main number.
+function renderTooltip({ active, payload, label, detailKey, detailLabel, valueFormatter }) {
   if (!active || !payload || !payload.length) return null;
   const row = payload[0].payload;
   return (
     <div className="chart-tooltip">
       <div className="chart-tooltip-title">{label}</div>
-      <div>{payload[0].value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+      <div>{valueFormatter(payload[0].value)}</div>
       {detailKey && (
         <div className="chart-tooltip-detail">
-          {detailLabel}: {row[detailKey].toLocaleString('en-US')}
+          {detailLabel}: {defaultDetailFormat(row[detailKey])}
         </div>
       )}
     </div>
@@ -34,11 +43,21 @@ function renderTooltip({ active, payload, label, detailKey, detailLabel }) {
 }
 
 // A reusable bar chart. It doesn't know or care whether it's showing
-// products or payers — the caller tells it which field goes on the
-// X axis (xKey), which field the bars are drawn from (barKey), and
+// products, payers, or a percentage — the caller tells it which field goes
+// on the X axis (xKey), which field the bars are drawn from (barKey), and
 // optionally a second field (detailKey/detailLabel) to surface in the
-// tooltip for extra context — e.g. units sold, or number of orders.
-function TopBarChart({ data, xKey, barKey, detailKey, detailLabel }) {
+// tooltip for extra context. labelFormatter/valueFormatter default to the
+// money-style formatting every existing usage relies on, so passing neither
+// changes nothing — only the new percentage chart overrides them.
+function TopBarChart({
+  data,
+  xKey,
+  barKey,
+  detailKey,
+  detailLabel,
+  labelFormatter = formatCompact,
+  valueFormatter = defaultMoneyFormat,
+}) {
   // same reasoning as RevenueChart — an empty array from a successful fetch
   // (no sales in this range) is not an error, but a blank chart looks like one
   if (data.length === 0) {
@@ -59,19 +78,18 @@ function TopBarChart({ data, xKey, barKey, detailKey, detailLabel }) {
           height={70}
           interval={0}
         />
-        <YAxis tickFormatter={formatCompact} tick={axisTickStyle} tickLine={false} axisLine={false} />
-        <Tooltip content={(props) => renderTooltip({ ...props, detailKey, detailLabel })} />
+        <YAxis tickFormatter={labelFormatter} tick={axisTickStyle} tickLine={false} axisLine={false} />
+        <Tooltip content={(props) => renderTooltip({ ...props, detailKey, detailLabel, valueFormatter })} />
         {/* barSize caps the thickness so bars never balloon to fill the
             slot; radius rounds only the top corners (data-end), square
             at the baseline */}
         <Bar dataKey={barKey} fill="#2a78d6" barSize={24} radius={[4, 4, 0, 0]}>
           {/* direct label at the tip of each bar — this is the whole ask:
-              show the actual number instead of making people hover for it.
-              Compact notation (6.2M) keeps it from overflowing a 24px-wide bar. */}
+              show the actual number instead of making people hover for it. */}
           <LabelList
             dataKey={barKey}
             position="top"
-            formatter={formatCompact}
+            formatter={labelFormatter}
             style={{ fill: '#52514e', fontSize: 12 }}
           />
         </Bar>

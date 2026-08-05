@@ -29,9 +29,13 @@ function Dashboard() {
   const [topMoversLoading, setTopMoversLoading] = useState(true);
   const [topMoversError, setTopMoversError] = useState(null);
 
-  const [slowMovers, setSlowMovers] = useState([]);
-  const [slowMoversLoading, setSlowMoversLoading] = useState(true);
-  const [slowMoversError, setSlowMoversError] = useState(null);
+  //  expiring stock has its OWN date control (not the shared from/to above)
+  //  — it's not a date RANGE, it's a single cutoff: "show lots expiring on
+  //  or before this date." Defaults to today.
+  const [expiringBefore, setExpiringBefore] = useState(() => new Date().toISOString().slice(0, 10));
+  const [expiringStock, setExpiringStock] = useState([]);
+  const [expiringLoading, setExpiringLoading] = useState(true);
+  const [expiringError, setExpiringError] = useState(null);
 
   //  runs once on first appearance, THEN again any time from/to/groupBy change
   //  ask the server, wait for the answer
@@ -56,49 +60,62 @@ function Dashboard() {
     loadRevenue();
   }, [from, to, groupBy]); // re-run whenever any of these change
 
-  //  fetches top-products, top-payers, top-movers, AND slow-movers together
-  //  via Promise.all — all four requests fire at once instead of one
-  //  waiting for the previous one. Only depends on [from, to], not
-  //  groupBy — none of these four endpoints take a groupBy param.
+  //  fetches top-products, top-payers, AND top-movers together via
+  //  Promise.all — all three requests fire at once instead of one waiting
+  //  for the previous one. Only depends on [from, to], not groupBy — none
+  //  of these three endpoints take a groupBy param.
   useEffect(() => {
     async function loadTopLists() {
       try {
         setTopProductsLoading(true);
         setTopPayersLoading(true);
         setTopMoversLoading(true);
-        setSlowMoversLoading(true);
-        const [productsRes, payersRes, moversRes, slowRes] = await Promise.all([
+        const [productsRes, payersRes, moversRes] = await Promise.all([
           fetch(`${API}/api/v1/analytics/top-products?from=${from}&to=${to}`),
           fetch(`${API}/api/v1/analytics/top-payers?from=${from}&to=${to}`),
           fetch(`${API}/api/v1/analytics/top-movers?from=${from}&to=${to}&limit=50`),
-          fetch(`${API}/api/v1/analytics/slow-movers?from=${from}&to=${to}`),
         ]);
         if (!productsRes.ok) throw new Error(`HTTP ${productsRes.status}`);
         if (!payersRes.ok) throw new Error(`HTTP ${payersRes.status}`);
         if (!moversRes.ok) throw new Error(`HTTP ${moversRes.status}`);
-        if (!slowRes.ok) throw new Error(`HTTP ${slowRes.status}`);
         const productsData = await productsRes.json();
         const payersData = await payersRes.json();
         const moversData = await moversRes.json();
-        const slowData = await slowRes.json();
         setTopProducts(productsData);
         setTopPayers(payersData);
         setTopMovers(moversData);
-        setSlowMovers(slowData);
       } catch (err) {
         setTopProductsError(err.message);
         setTopPayersError(err.message);
         setTopMoversError(err.message);
-        setSlowMoversError(err.message);
       } finally {
         setTopProductsLoading(false);
         setTopPayersLoading(false);
         setTopMoversLoading(false);
-        setSlowMoversLoading(false);
       }
     }
     loadTopLists();
   }, [from, to]);
+
+  //  independent of everything above — this endpoint takes a single cutoff
+  //  date, not a from/to range, so it gets its own effect keyed on just
+  //  [expiringBefore] instead of piggybacking on the shared date range.
+  useEffect(() => {
+    async function loadExpiringStock() {
+      try {
+        setExpiringLoading(true);
+        const res = await fetch(`${API}/api/v1/analytics/expiring-stock?before=${expiringBefore}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setExpiringStock(data);
+      } catch (err) {
+        setExpiringError(err.message);
+      } finally {
+        setExpiringLoading(false);
+      }
+    }
+    loadExpiringStock();
+  }, [expiringBefore]);
 
   // Part A — KPI: derived from state already being fetched for the chart,
   // not a new request. .reduce() walks the array once, building a running total.
@@ -106,6 +123,14 @@ function Dashboard() {
   // profit now rides along on the same revenue rows (the backend query was
   // extended to return cost/profit alongside revenue) — no new fetch needed.
   const totalProfit = revenue.reduce((sum, row) => sum + row.profit, 0);
+
+  // % remaining per lot — computed here since the backend returns raw
+  // quantity/initialQuantity, not a precomputed percentage, and TopBarChart
+  // needs the value living directly on each row to plot it as a bar.
+  const expiringWithPct = expiringStock.map((row) => ({
+    ...row,
+    pctRemaining: row.initialQuantity ? (row.quantity / row.initialQuantity) * 100 : 0,
+  }));
 
   return (
     <div>
@@ -221,39 +246,51 @@ function Dashboard() {
         </section>
 
         <section className="card">
-          <h2>Slow movers</h2>
-          {!slowMoversLoading && !slowMoversError && slowMovers.length === 0 && (
-            <p className="kpi-label">No data for this range.</p>
-          )}
-          {!slowMoversLoading && !slowMoversError && slowMovers.length > 0 && (
-            <>
-              {/* barKey is totalQuantity here, not totalRevenue — the ranking
-                  metric IS units sold, so the bar height needs to show that,
-                  with revenue riding along as the secondary detail instead */}
-              <TopBarChart
-                data={slowMovers}
-                xKey="productName"
-                barKey="totalQuantity"
-                detailKey="totalRevenue"
-                detailLabel="Revenue"
-              />
-              <ul className="list-plain">
-                {slowMovers.map((row) => {
-                  // same stock math as the Top Movers table — initial_quantity
-                  // is what actually answers "how many units were there to
-                  // begin with," which is the whole point of this addition
-                  const pctRemaining =
-                    row.initialQuantity ? (row.liveQuantity / row.initialQuantity) * 100 : null;
-                  const low = pctRemaining !== null && pctRemaining < 30;
+          <h2>Expiring stock</h2>
 
+          {/* local to just this panel, not the shared date range above —
+              a single cutoff date, not a from/to span */}
+          <div className="controls">
+            <label htmlFor="expiring-before" className="kpi-label">Expiring on or before</label>
+            <input
+              id="expiring-before"
+              type="date"
+              value={expiringBefore}
+              onChange={(e) => setExpiringBefore(e.target.value)}
+            />
+          </div>
+
+          {expiringLoading && <p>Loading…</p>}
+          {expiringError && <p>Error: {expiringError}</p>}
+          {!expiringLoading && !expiringError && expiringStock.length === 0 && (
+            <p className="kpi-label">Nothing expiring by this date.</p>
+          )}
+          {!expiringLoading && !expiringError && expiringStock.length > 0 && (
+            <>
+              {/* only the 6 soonest-expiring lots in the chart — the full
+                  list below (scrollable) carries everything else */}
+              <TopBarChart
+                data={expiringWithPct.slice(0, 6)}
+                xKey="itemName"
+                barKey="pctRemaining"
+                detailKey="expirationDate"
+                detailLabel="Expires"
+                labelFormatter={(v) => `${v.toFixed(0)}%`}
+                valueFormatter={(v) => `${v.toFixed(0)}% left`}
+              />
+              <ul className="scroll-list">
+                {expiringWithPct.map((row) => {
+                  // high % remaining + close to expiring = waste risk — the
+                  // OPPOSITE direction from the low-stock "Reorder" flag
+                  // elsewhere, so a separate class (same red style)
+                  const wasteRisk = row.pctRemaining >= 50;
                   return (
-                    <li key={row.productName} className="list-row">
-                      {row.productName}: {row.totalQuantity.toLocaleString('en-US')} sold
-                      {' '}(initial {row.initialQuantity ?? '—'}, live {row.liveQuantity ?? '—'}
-                      {', '}
-                      <span className={low ? 'pct-low' : ''}>
-                        {pctRemaining !== null ? `${pctRemaining.toFixed(0)}% left` : '— left'}
-                        {low && ' — Reorder'}
+                    <li key={`${row.itemName}-${row.batchNumber}`} className="list-row">
+                      {row.itemName}: expires {row.expirationDate}
+                      {' '}(live {row.quantity} / initial {row.initialQuantity},{' '}
+                      <span className={wasteRisk ? 'pct-alert' : ''}>
+                        {row.pctRemaining.toFixed(0)}% left
+                        {wasteRisk && ' — waste risk'}
                       </span>
                       )
                     </li>
@@ -262,8 +299,6 @@ function Dashboard() {
               </ul>
             </>
           )}
-          {slowMoversLoading && <p>Loading…</p>}
-          {slowMoversError && <p>Error: {slowMoversError}</p>}
         </section>
       </div>
 
