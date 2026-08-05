@@ -29,6 +29,13 @@ function Dashboard() {
   const [topMoversLoading, setTopMoversLoading] = useState(true);
   const [topMoversError, setTopMoversError] = useState(null);
 
+  // Column sort for the Top movers table. null key = default order (the
+  // API's own order, units sold descending) — that's also what the #
+  // rank column is fixed to, so sorting by another column re-orders the
+  // rows on screen without renumbering who's "the #1 mover".
+  const [moversSortKey, setMoversSortKey] = useState(null);
+  const [moversSortDir, setMoversSortDir] = useState('asc');
+
   //  expiring stock has its OWN date range (not the shared from/to above) —
   //  defaults to today through 1 year out, so the panel opens showing
   //  what's coming up, not already-expired stock or the entire future.
@@ -78,7 +85,7 @@ function Dashboard() {
         const [productsRes, payersRes, moversRes] = await Promise.all([
           fetch(`${API}/api/v1/analytics/top-products?from=${from}&to=${to}`),
           fetch(`${API}/api/v1/analytics/top-payers?from=${from}&to=${to}`),
-          fetch(`${API}/api/v1/analytics/top-movers?from=${from}&to=${to}&limit=50`),
+          fetch(`${API}/api/v1/analytics/top-movers?from=${from}&to=${to}&limit=100`),
         ]);
         if (!productsRes.ok) throw new Error(`HTTP ${productsRes.status}`);
         if (!payersRes.ok) throw new Error(`HTTP ${payersRes.status}`);
@@ -141,6 +148,54 @@ function Dashboard() {
     expirationDate: row.expirationDate?.split('T')[0],
     pctRemaining: row.initialQuantity ? (row.quantity / row.initialQuantity) * 100 : 0,
   }));
+
+  // rank is assigned here, BEFORE any client-side sort — the API already
+  // returns top-movers ordered by units sold descending, so index 0 is
+  // always the #1 mover. Sorting the table by another column re-orders
+  // what's on screen but never renumbers this column.
+  const topMoversRanked = topMovers.map((row, i) => ({
+    ...row,
+    rank: i + 1,
+    pctRemaining: row.initialQuantity ? (row.liveQuantity / row.initialQuantity) * 100 : null,
+    avgPrice: row.totalQuantity ? row.totalRevenue / row.totalQuantity : null,
+  }));
+
+  const moverColumns = [
+    { key: 'productName', label: 'Product' },
+    { key: 'totalQuantity', label: 'Units sold' },
+    { key: 'initialQuantity', label: 'Initial qty' },
+    { key: 'liveQuantity', label: 'Live qty' },
+    { key: 'pctRemaining', label: '% remaining' },
+    { key: 'idLot', label: 'Documented date' },
+    { key: 'avgPrice', label: 'Avg price' },
+    { key: 'totalRevenue', label: 'Revenue' },
+    { key: 'profit', label: 'Profit' },
+  ];
+
+  // click same header again to flip direction; click a different header to
+  // sort by it, starting ascending. Nulls (missing stock-lot match) always
+  // sort to the bottom regardless of direction, rather than jumping to
+  // whichever end "0"/empty-string would land on.
+  function handleMoversSort(key) {
+    if (moversSortKey === key) {
+      setMoversSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setMoversSortKey(key);
+      setMoversSortDir('asc');
+    }
+  }
+
+  const sortedMovers = moversSortKey
+    ? [...topMoversRanked].sort((a, b) => {
+        const av = a[moversSortKey];
+        const bv = b[moversSortKey];
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        const cmp = typeof av === 'string' ? av.localeCompare(bv) : av - bv;
+        return moversSortDir === 'asc' ? cmp : -cmp;
+      })
+    : topMoversRanked;
 
   return (
     <div>
@@ -319,7 +374,7 @@ function Dashboard() {
       </div>
 
       {/* Full-width panel, deliberately OUTSIDE .dashboard-grid — a table of
-          50 rows doesn't belong squeezed into a ~400px grid column the way
+          100 rows doesn't belong squeezed into a ~400px grid column the way
           the charts do; it needs the whole page width to stay readable. */}
       <section className="card">
         <h2>Top movers — units sold</h2>
@@ -333,29 +388,26 @@ function Dashboard() {
           <table>
             <thead>
               <tr>
-                <th>Product</th>
-                <th>Units sold</th>
-                <th>Initial qty</th>
-                <th>Live qty</th>
-                <th>% remaining</th>
-                <th>Documented date</th>
-                <th>Avg price</th>
-                <th>Revenue</th>
-                <th>Profit</th>
+                <th>#</th>
+                {moverColumns.map((col) => (
+                  <th key={col.key} className="sortable" onClick={() => handleMoversSort(col.key)}>
+                    {col.label}
+                    {moversSortKey === col.key && (moversSortDir === 'asc' ? ' ▲' : ' ▼')}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {topMovers.map((row) => {
+              {sortedMovers.map((row) => {
                 // % remaining = current lot quantity / what that lot started
                 // with. Null when a product has sales but no matching stock
                 // lot (the LEFT JOIN on the backend found nothing) — shown as
                 // "—" rather than crashing on a null initialQuantity.
-                const pctRemaining =
-                  row.initialQuantity ? (row.liveQuantity / row.initialQuantity) * 100 : null;
-                const low = pctRemaining !== null && pctRemaining < 30;
+                const low = row.pctRemaining !== null && row.pctRemaining < 40;
 
                 return (
                   <tr key={row.productName}>
+                    <td>{row.rank}</td>
                     <td>{row.productName}</td>
                     <td>{row.totalQuantity.toLocaleString('en-US')}</td>
                     <td>{row.initialQuantity ?? '—'}</td>
@@ -363,15 +415,17 @@ function Dashboard() {
                     {/* red is never the only signal — "Reorder" is the real
                         flag; color just makes it faster to spot at a glance */}
                     <td className={low ? 'pct-low' : ''}>
-                      {pctRemaining !== null ? `${pctRemaining.toFixed(0)}%` : '—'}
+                      {row.pctRemaining !== null ? `${row.pctRemaining.toFixed(0)}%` : '—'}
                       {low && ' — Reorder'}
                     </td>
                     <td>{row.idLot ?? '—'}</td>
                     <td>
-                      {(row.totalRevenue / row.totalQuantity).toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
+                      {row.avgPrice !== null
+                        ? row.avgPrice.toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })
+                        : '—'}
                     </td>
                     <td>
                       {row.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

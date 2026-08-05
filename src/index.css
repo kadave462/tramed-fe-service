@@ -258,6 +258,17 @@ th {
   border-bottom: 1px solid var(--gridline);
 }
 
+/* Top movers table headers — clickable to sort, so they need to read as
+   interactive rather than plain labels. */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+th.sortable:hover {
+  color: var(--text-primary);
+}
+
 td {
   padding: 9px 10px;
   border-bottom: 1px solid var(--gridline);
