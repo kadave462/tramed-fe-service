@@ -104,7 +104,7 @@ function Dashboard() {
         const [productsRes, payersRes, moversRes] = await Promise.all([
           fetch(`${API}/api/v1/analytics/top-products?from=${from}&to=${to}`),
           fetch(`${API}/api/v1/analytics/top-payers?from=${from}&to=${to}`),
-          fetch(`${API}/api/v1/analytics/top-movers?from=${from}&to=${to}&limit=100`),
+          fetch(`${API}/api/v1/analytics/top-movers?from=${from}&to=${to}&limit=1000`),
         ]);
         if (!productsRes.ok) throw new Error(`HTTP ${productsRes.status}`);
         if (!payersRes.ok) throw new Error(`HTTP ${payersRes.status}`);
