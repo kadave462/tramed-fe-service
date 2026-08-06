@@ -52,6 +52,7 @@ function Forecast() {
           <table>
             <thead>
               <tr>
+                <th>Item ID</th>
                 <th>Item</th>
                 <th>Current stock</th>
                 <th>Avg daily sales</th>
@@ -61,6 +62,7 @@ function Forecast() {
             <tbody>
               {stockForecast.slice(0, 15).map((row) => (
                 <tr key={row.itemId}>
+                  <td>{row.itemId}</td>
                   <td>{row.itemName}</td>
                   <td>{row.currentStock}</td>
                   <td>{row.avgDailySales.toFixed(2)}</td>
