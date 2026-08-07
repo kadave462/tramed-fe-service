@@ -505,9 +505,9 @@ function Dashboard() {
               {/* whole-range total, not per-lot — everything currently
                   between expiringAfter and expiringBefore, valued at cost */}
               <p className="kpi-label">
-                Total cost of expiring stock in this range:{' '}
+                Total cost of expiring stock before {expiringBefore}:{' '}
                 <span className="kpi-value">
-                  {totalExpiringCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {totalExpiringCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} RWF
                 </span>
               </p>
 
@@ -540,7 +540,7 @@ function Dashboard() {
                         <>
                           {', '}
                           {row.lostValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          {' to lose'}
+                          {' RWF'}
                         </>
                       )}
                       )
