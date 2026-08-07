@@ -2,6 +2,7 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -57,6 +58,11 @@ function TopBarChart({
   detailLabel,
   labelFormatter = formatCompact,
   valueFormatter = defaultMoneyFormat,
+  // optional: (row) => a CSS color string. When given, each bar is colored
+  // individually based on its own row instead of every bar sharing the one
+  // fixed blue fill — used by Expiring stock to flag high-%-remaining lots
+  // red and low ones green, on top of the label most other charts don't need.
+  colorForRow,
 }) {
   // same reasoning as RevenueChart — an empty array from a successful fetch
   // (no sales in this range) is not an error, but a blank chart looks like one
@@ -84,6 +90,11 @@ function TopBarChart({
             slot; radius rounds only the top corners (data-end), square
             at the baseline */}
         <Bar dataKey={barKey} fill="#2a78d6" barSize={24} radius={[4, 4, 0, 0]}>
+          {/* Cell overrides ONE bar's fill each, in the same order as `data`.
+              Only rendered when the caller passes colorForRow — everything
+              else keeps the single fixed blue fill from Bar's own `fill` above. */}
+          {colorForRow &&
+            data.map((row, i) => <Cell key={`cell-${i}`} fill={colorForRow(row)} />)}
           {/* direct label at the tip of each bar — this is the whole ask:
               show the actual number instead of making people hover for it. */}
           <LabelList

@@ -12,6 +12,35 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 // but ~9 months to get there — not urgent at that pace).
 const REORDER_DAYS_THRESHOLD = 14;
 
+// Must match --danger/--good in index.css. Kept as separate JS constants
+// rather than reading the CSS variables at runtime, because Recharts sets
+// Cell's fill as a raw SVG attribute — var() there isn't reliable the way
+// it is in a normal style property, so a plain hex string is the safe bet.
+const DANGER_COLOR = '#d03b3b';
+const GOOD_COLOR = '#2f9e44';
+
+function toISODate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+// Sunday of the week containing `date` — getDay() returns 0 for Sunday, so
+// subtracting it always lands on that week's Sunday no matter which day
+// `date` itself falls on.
+function startOfWeekSunday(date) {
+  const d = new Date(date);
+  d.setDate(d.getDate() - d.getDay());
+  return toISODate(d);
+}
+
+// Friday of the SAME week as startOfWeekSunday — Sunday + 5 days. Deliberately
+// NOT Saturday: this dashboard defaults to a Sun-Fri work week, not a full
+// 7-day calendar week.
+function endOfWeekFriday(date) {
+  const d = new Date(date);
+  d.setDate(d.getDate() - d.getDay() + 5);
+  return toISODate(d);
+}
+
 // idLot ("Documented date") is a 6-digit YYMMDD string, e.g. "251112" =
 // 2025-11-12 — confirmed against the pharmacy's own sale records.
 function parseDocumentedDate(idLot) {
@@ -29,10 +58,14 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);  // still fetching?
   const [error, setError] = useState(null);      // did it fail?
 
-  //  the 3 new memory slots — what the user controls
-  const [from, setFrom] = useState('2026-01-01');
-  const [to, setTo] = useState('2026-12-31');
-  const [groupBy, setGroupBy] = useState('month');
+  //  the 3 new memory slots — what the user controls. Defaults to the
+  //  current week, Sunday through Friday (a 6-day work week, deliberately
+  //  not through Saturday), with groupBy defaulting to 'day' so each of
+  //  those 6 days shows as its own point on the Revenue chart instead of
+  //  collapsing into one 'month' bucket for a range that's only a week wide.
+  const [from, setFrom] = useState(() => startOfWeekSunday(new Date()));
+  const [to, setTo] = useState(() => endOfWeekFriday(new Date()));
+  const [groupBy, setGroupBy] = useState('day');
 
   //  same data/loading/error trio, once per new panel — kept independent so
   //  one endpoint failing doesn't blank out the other panel's data
@@ -56,17 +89,53 @@ function Dashboard() {
   const [moversSortDir, setMoversSortDir] = useState('asc');
 
   //  expiring stock has its OWN date range (not the shared from/to above) —
-  //  defaults to today through 1 year out, so the panel opens showing
-  //  what's coming up, not already-expired stock or the entire future.
-  const [expiringAfter, setExpiringAfter] = useState(() => new Date().toISOString().slice(0, 10));
+  //  defaults to today through 1 MONTH out (was 1 year), so the panel opens
+  //  showing what's genuinely coming up soon, not the entire next year.
+  const [expiringAfter, setExpiringAfter] = useState(() => toISODate(new Date()));
   const [expiringBefore, setExpiringBefore] = useState(() => {
-    const oneYearOut = new Date();
-    oneYearOut.setFullYear(oneYearOut.getFullYear() + 1);
-    return oneYearOut.toISOString().slice(0, 10);
+    const oneMonthOut = new Date();
+    oneMonthOut.setMonth(oneMonthOut.getMonth() + 1);
+    return toISODate(oneMonthOut);
   });
   const [expiringStock, setExpiringStock] = useState([]);
   const [expiringLoading, setExpiringLoading] = useState(true);
   const [expiringError, setExpiringError] = useState(null);
+
+  // Quick presets for the main from/to/groupBy controls. Sets state directly
+  // rather than returning values, since from/to/groupBy already live as
+  // separate useState calls above — this is just a shortcut for setting all
+  // 2-3 of them together instead of clicking two date inputs by hand.
+  function applyDatePreset(preset) {
+    const today = new Date();
+    const todayISO = toISODate(today);
+    if (preset === 'today') {
+      setFrom(todayISO);
+      setTo(todayISO);
+    } else if (preset === 'yesterday') {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayISO = toISODate(yesterday);
+      setFrom(yesterdayISO);
+      setTo(yesterdayISO);
+    } else if (preset === '7days') {
+      const sevenAgo = new Date(today);
+      sevenAgo.setDate(sevenAgo.getDate() - 7);
+      setFrom(toISODate(sevenAgo));
+      setTo(todayISO);
+    } else if (preset === 'thisMonth') {
+      const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      setFrom(toISODate(firstOfMonth));
+      setTo(todayISO);
+    } else if (preset === 'year') {
+      const jan1 = new Date(today.getFullYear(), 0, 1);
+      setFrom(toISODate(jan1));
+      setTo(todayISO);
+      // the whole point of the Year preset: a year-wide range grouped by
+      // day would be hundreds of unreadable bars, so this preset also
+      // switches groupBy — the other 4 presets leave groupBy alone.
+      setGroupBy('month');
+    }
+  }
 
   //  runs once on first appearance, THEN again any time from/to/groupBy change
   //  ask the server, wait for the answer
@@ -170,7 +239,17 @@ function Dashboard() {
     // for what's really just a date — drop everything from "T" onward
     expirationDate: row.expirationDate?.split('T')[0],
     pctRemaining: row.initialQuantity ? (row.quantity / row.initialQuantity) * 100 : 0,
+    // quantity still live at cost = what's actually lost if this lot expires
+    // unsold. unitCost can be null (not every staging_stock row has one
+    // recorded) — lostValue stays null too rather than silently showing 0.
+    lostValue: row.unitCost != null ? row.quantity * row.unitCost : null,
   }));
+
+  // total money at risk across every lot currently in the expiringAfter/
+  // expiringBefore range — nulls (missing unitCost) contribute 0, same as
+  // the rest of this codebase's ?? 0 pattern for "unknown, not zero, but
+  // can't let it break a sum".
+  const totalExpiringCost = expiringWithPct.reduce((sum, row) => sum + (row.lostValue ?? 0), 0);
 
   // "Units sold" totals aren't comparable across products as a speed
   // ranking — a tablet product racks up quantity in individual pills while
@@ -236,8 +315,6 @@ function Dashboard() {
     { key: 'idLot', label: 'Documented date' },
     { key: 'expirationDate', label: 'Expiration date' },
     { key: 'lastSale', label: 'Last sale' },
-    { key: 'avgPrice', label: 'Avg price' },
-    { key: 'totalRevenue', label: 'Revenue' },
     { key: 'profit', label: 'Profit' },
   ];
 
@@ -294,6 +371,13 @@ function Dashboard() {
           <option value="month">Month</option>
           <option value="year">Year</option>
         </select>
+        {/* quick presets — each just calls setFrom/setTo(/setGroupBy) under
+            the hood, same state the two date inputs above already control */}
+        <button type="button" className="preset-btn" onClick={() => applyDatePreset('today')}>Today</button>
+        <button type="button" className="preset-btn" onClick={() => applyDatePreset('yesterday')}>Yesterday</button>
+        <button type="button" className="preset-btn" onClick={() => applyDatePreset('7days')}>7 days ago</button>
+        <button type="button" className="preset-btn" onClick={() => applyDatePreset('thisMonth')}>This month</button>
+        <button type="button" className="preset-btn" onClick={() => applyDatePreset('year')}>Year</button>
       </div>
 
       {loading && <p>Loading…</p>}
@@ -407,6 +491,15 @@ function Dashboard() {
           )}
           {!expiringLoading && !expiringError && expiringStock.length > 0 && (
             <>
+              {/* whole-range total, not per-lot — everything currently
+                  between expiringAfter and expiringBefore, valued at cost */}
+              <p className="kpi-label">
+                Total cost of expiring stock in this range:{' '}
+                <span className="kpi-value">
+                  {totalExpiringCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </p>
+
               {/* only the 6 soonest-expiring lots in the chart — the full
                   list below (scrollable) carries everything else */}
               <TopBarChart
@@ -417,21 +510,28 @@ function Dashboard() {
                 detailLabel="Expires"
                 labelFormatter={(v) => `${v.toFixed(0)}%`}
                 valueFormatter={(v) => `${v.toFixed(0)}% left`}
+                // high % remaining this close to expiring = waste risk (red);
+                // below the threshold = fine (green) — opposite direction
+                // from the low-stock "Reorder" flag in Top movers below
+                colorForRow={(row) => (row.pctRemaining >= 50 ? DANGER_COLOR : GOOD_COLOR)}
               />
               <ul className="scroll-list">
                 {expiringWithPct.map((row) => {
-                  // high % remaining + close to expiring = waste risk — the
-                  // OPPOSITE direction from the low-stock "Reorder" flag
-                  // elsewhere, so a separate class (same red style)
                   const wasteRisk = row.pctRemaining >= 50;
                   return (
                     <li key={`${row.itemName}-${row.batchNumber}`} className="list-row">
                       {row.itemName}: expires {row.expirationDate}
                       {' '}(live {row.quantity} / initial {row.initialQuantity},{' '}
-                      <span className={wasteRisk ? 'pct-alert' : ''}>
+                      <span className={wasteRisk ? 'pct-alert' : 'pct-good'}>
                         {row.pctRemaining.toFixed(0)}% left
-                        {wasteRisk && ' — waste risk'}
                       </span>
+                      {row.lostValue != null && (
+                        <>
+                          {', '}
+                          {row.lostValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {' to lose'}
+                        </>
+                      )}
                       )
                     </li>
                   );
@@ -491,17 +591,6 @@ function Dashboard() {
                     <td>{row.idLot ?? '—'}</td>
                     <td>{row.expirationDate ?? '—'}</td>
                     <td>{row.lastSale ?? '—'}</td>
-                    <td>
-                      {row.avgPrice !== null
-                        ? row.avgPrice.toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })
-                        : '—'}
-                    </td>
-                    <td>
-                      {row.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
                     <td>
                       {row.profit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
