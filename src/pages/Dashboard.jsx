@@ -238,7 +238,10 @@ function Dashboard() {
     // backend returns a full ISO timestamp (e.g. "2027-01-28T00:00:00.000Z")
     // for what's really just a date — drop everything from "T" onward
     expirationDate: row.expirationDate?.split('T')[0],
-    pctRemaining: row.initialQuantity ? (row.quantity / row.initialQuantity) * 100 : 0,
+    // capped at 100 — same "INVENTAIRE" correction case as topMoversRanked
+    // below, where an inventory-count adjustment can raise live quantity
+    // above the source's recorded initial count
+    pctRemaining: row.initialQuantity ? Math.min(100, (row.quantity / row.initialQuantity) * 100) : 0,
     // quantity still live at cost = what's actually lost if this lot expires
     // unsold. unitCost can be null (not every staging_stock row has one
     // recorded) — lostValue stays null too rather than silently showing 0.
@@ -275,7 +278,15 @@ function Dashboard() {
   const topMoversRanked = topMovers
     .filter((row) => row.idLot != null)
     .map((row) => {
-      const pctRemaining = row.initialQuantity ? (row.liveQuantity / row.initialQuantity) * 100 : null;
+      // capped at 100: initialQuantity is the source system's recorded
+      // starting count, but an inventory-count correction (supplierName
+      // "INVENTAIRE") can raise liveQuantity above it without the source
+      // ever updating that starting count — confirmed on METFORMINE SR
+      // 1000mg (item 15716), live 40 vs initial 30. Showing "133% remaining"
+      // is nonsensical; capping treats it as fully stocked instead.
+      const pctRemaining = row.initialQuantity
+        ? Math.min(100, (row.liveQuantity / row.initialQuantity) * 100)
+        : null;
       const avgPrice = row.totalQuantity ? row.totalRevenue / row.totalQuantity : null;
 
       const documentedDate = parseDocumentedDate(row.idLot);
