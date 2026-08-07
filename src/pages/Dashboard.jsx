@@ -403,7 +403,7 @@ function Dashboard() {
 
               {/* the exact numbers, scrollable so a long day-by-day list doesn't
                   push the page height around */}
-              <ul className="scroll-list">
+              <ul className="scroll-list scroll-list--tight">
                 {revenue.map((row) => (
                   <li key={row.period} className="list-row">
                     {row.period}: {row.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

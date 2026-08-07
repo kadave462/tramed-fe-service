@@ -214,6 +214,13 @@ select {
   margin: 0;
 }
 
+/* Revenue panel's number list only — caps it at 6 rows tall (6 * 32px per
+   .list-row) so a day-by-day range scrolls immediately instead of stretching
+   the card down to match a 30-row month. */
+.scroll-list--tight {
+  max-height: 192px;
+}
+
 .list-plain {
   list-style: none;
   padding: 0;
