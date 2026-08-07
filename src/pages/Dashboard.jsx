@@ -104,7 +104,11 @@ function Dashboard() {
         const [productsRes, payersRes, moversRes] = await Promise.all([
           fetch(`${API}/api/v1/analytics/top-products?from=${from}&to=${to}`),
           fetch(`${API}/api/v1/analytics/top-payers?from=${from}&to=${to}`),
-          fetch(`${API}/api/v1/analytics/top-movers?from=${from}&to=${to}&limit=1000`),
+          // 20000 is comfortably above the entire product catalog (~16,809
+          // products) — the query can only ever return one row per product
+          // that had a sale in range, so this limit can never be the thing
+          // truncating the list, no matter how the sales pattern grows.
+          fetch(`${API}/api/v1/analytics/top-movers?from=${from}&to=${to}&limit=20000`),
         ]);
         if (!productsRes.ok) throw new Error(`HTTP ${productsRes.status}`);
         if (!payersRes.ok) throw new Error(`HTTP ${payersRes.status}`);
@@ -206,7 +210,17 @@ function Dashboard() {
         daysRemaining = unitsPerDay > 0 ? row.liveQuantity / unitsPerDay : null;
       }
 
-      return { ...row, pctRemaining, avgPrice, depletionRatePerDay, daysRemaining };
+      return {
+        ...row,
+        pctRemaining,
+        avgPrice,
+        depletionRatePerDay,
+        daysRemaining,
+        // backend sends full ISO timestamps for both — trim to plain dates,
+        // same trick as expiringWithPct above.
+        expirationDate: row.expirationDate?.split('T')[0],
+        lastSale: row.lastSale?.slice(0, 10),
+      };
     })
     .sort((a, b) => (b.depletionRatePerDay ?? -1) - (a.depletionRatePerDay ?? -1))
     .map((row, i) => ({ ...row, rank: i + 1 }));
@@ -220,6 +234,8 @@ function Dashboard() {
     { key: 'pctRemaining', label: '% remaining' },
     { key: 'depletionRatePerDay', label: '% of lot sold / day' },
     { key: 'idLot', label: 'Documented date' },
+    { key: 'expirationDate', label: 'Expiration date' },
+    { key: 'lastSale', label: 'Last sale' },
     { key: 'avgPrice', label: 'Avg price' },
     { key: 'totalRevenue', label: 'Revenue' },
     { key: 'profit', label: 'Profit' },
@@ -473,6 +489,8 @@ function Dashboard() {
                       {low && ' — Reorder'}
                     </td>
                     <td>{row.idLot ?? '—'}</td>
+                    <td>{row.expirationDate ?? '—'}</td>
+                    <td>{row.lastSale ?? '—'}</td>
                     <td>
                       {row.avgPrice !== null
                         ? row.avgPrice.toLocaleString('en-US', {
