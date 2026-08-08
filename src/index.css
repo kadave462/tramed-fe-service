@@ -186,7 +186,12 @@ select {
 /* ── dashboard layout (was: inline style objects) ── */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  /* min(400px, 100%) — not a plain 400px — because a grid track's minimum
+     can't shrink below its minmax() floor no matter how narrow the
+     container gets. A phone viewport (~375px) is narrower than a flat
+     400px, so the track (and everything after it) pushed past the screen
+     edge and forced the whole page to scroll sideways. */
+  grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr));
   gap: 24px;
 }
 
@@ -267,6 +272,12 @@ table {
 .table-scroll {
   max-height: 500px;
   overflow-y: auto;
+  /* Top movers has 11 columns — wider than any phone screen. Without this,
+     the table doesn't shrink to fit; it just spills past the card's edge
+     and drags the ENTIRE page into sideways scrolling. Scoping the scroll
+     to just this box keeps that overflow contained to the table itself. */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table-scroll thead th {
