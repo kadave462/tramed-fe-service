@@ -23,22 +23,9 @@ function toISODate(date) {
   return date.toISOString().slice(0, 10);
 }
 
-// Sunday of the week containing `date` — getDay() returns 0 for Sunday, so
-// subtracting it always lands on that week's Sunday no matter which day
-// `date` itself falls on.
-function startOfWeekSunday(date) {
-  const d = new Date(date);
-  d.setDate(d.getDate() - d.getDay());
-  return toISODate(d);
-}
-
-// Friday of the SAME week as startOfWeekSunday — Sunday + 5 days. Deliberately
-// NOT Saturday: this dashboard defaults to a Sun-Fri work week, not a full
-// 7-day calendar week.
-function endOfWeekFriday(date) {
-  const d = new Date(date);
-  d.setDate(d.getDate() - d.getDay() + 5);
-  return toISODate(d);
+// January 1st of `date`'s year — the default range's lower bound.
+function startOfYear(date) {
+  return toISODate(new Date(date.getFullYear(), 0, 1));
 }
 
 // idLot ("Documented date") is a 6-digit YYMMDD string, e.g. "251112" =
@@ -58,14 +45,13 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);  // still fetching?
   const [error, setError] = useState(null);      // did it fail?
 
-  //  the 3 new memory slots — what the user controls. Defaults to the
-  //  current week, Sunday through Friday (a 6-day work week, deliberately
-  //  not through Saturday), with groupBy defaulting to 'day' so each of
-  //  those 6 days shows as its own point on the Revenue chart instead of
-  //  collapsing into one 'month' bucket for a range that's only a week wide.
-  const [from, setFrom] = useState(() => startOfWeekSunday(new Date()));
-  const [to, setTo] = useState(() => endOfWeekFriday(new Date()));
-  const [groupBy, setGroupBy] = useState('day');
+  //  the 3 new memory slots — what the user controls. Defaults to
+  //  Jan 1 of the current year through today, grouped by month — same
+  //  range/granularity as the Year preset below, just applied on load
+  //  instead of requiring a click.
+  const [from, setFrom] = useState(() => startOfYear(new Date()));
+  const [to, setTo] = useState(() => toISODate(new Date()));
+  const [groupBy, setGroupBy] = useState('month');
 
   //  same data/loading/error trio, once per new panel — kept independent so
   //  one endpoint failing doesn't blank out the other panel's data
