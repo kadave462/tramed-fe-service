@@ -108,28 +108,34 @@ function Dashboard() {
     if (preset === 'today') {
       setFrom(todayISO);
       setTo(todayISO);
+      setGroupBy('day');
     } else if (preset === 'yesterday') {
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayISO = toISODate(yesterday);
       setFrom(yesterdayISO);
       setTo(yesterdayISO);
+      setGroupBy('day');
     } else if (preset === '7days') {
       const sevenAgo = new Date(today);
       sevenAgo.setDate(sevenAgo.getDate() - 7);
       setFrom(toISODate(sevenAgo));
       setTo(todayISO);
+      setGroupBy('day');
     } else if (preset === 'thisMonth') {
       const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       setFrom(toISODate(firstOfMonth));
       setTo(todayISO);
+      setGroupBy('day');
     } else if (preset === 'year') {
       const jan1 = new Date(today.getFullYear(), 0, 1);
       setFrom(toISODate(jan1));
       setTo(todayISO);
-      // the whole point of the Year preset: a year-wide range grouped by
-      // day would be hundreds of unreadable bars, so this preset also
-      // switches groupBy — the other 4 presets leave groupBy alone.
+      // opposite of the other 4 presets: a year-wide range grouped by day
+      // would be hundreds of unreadable bars, so Year switches to 'month'
+      // instead — Today/Yesterday/7 days ago/This month all switch to 'day',
+      // since their ranges are short enough that day-level detail is exactly
+      // the point (and weekday names only render in that mode).
       setGroupBy('month');
     }
   }
