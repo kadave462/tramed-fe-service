@@ -53,6 +53,16 @@ function Dashboard() {
   const [to, setTo] = useState(() => toISODate(new Date()));
   const [groupBy, setGroupBy] = useState('month');
 
+  //  the cutoff date for the "By this date" control below — its own state
+  //  since it's a specific date, not one of the 5 fixed presets. Defaults
+  //  to today-2 days: today's own figures are usually still incomplete
+  //  (sales still coming in), so a 2-day-old cutoff is safer as a first look.
+  const [byThisDate, setByThisDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 2);
+    return toISODate(d);
+  });
+
   //  same data/loading/error trio, once per new panel — kept independent so
   //  one endpoint failing doesn't blank out the other panel's data
   const [topProducts, setTopProducts] = useState([]);
@@ -120,17 +130,20 @@ function Dashboard() {
       // day would be hundreds of unreadable bars, so this preset also
       // switches groupBy — the other 4 presets leave groupBy alone.
       setGroupBy('month');
-    } else if (preset === 'byThisDate') {
-      // "by this date" — each month capped to its own 1st-through-today's-
-      // day-of-month, so July (fully counted under the plain Year preset)
-      // doesn't look bigger than August just for having more days in it.
-      // groupBy 'month-to-date' is a distinct backend query, not a client-
-      // side filter — see revenuePeriodByMonthToDate in FactSaleRepository.
-      const jan1 = new Date(today.getFullYear(), 0, 1);
-      setFrom(toISODate(jan1));
-      setTo(todayISO);
-      setGroupBy('month-to-date');
     }
+  }
+
+  // "By this date" — sets the shared from/to/groupBy from the byThisDate
+  // input above. groupBy 'month-to-date' is a distinct backend query, not a
+  // client-side filter — see revenuePeriodByMonthToDate in
+  // FactSaleRepository; it caps every month in range to days
+  // 1-through-day-of-month(:to), :to being whatever date is picked here.
+  function applyByThisDate(dateStr) {
+    setByThisDate(dateStr);
+    const year = parseInt(dateStr.slice(0, 4), 10);
+    setFrom(toISODate(new Date(year, 0, 1)));
+    setTo(dateStr);
+    setGroupBy('month-to-date');
   }
 
   //  runs once on first appearance, THEN again any time from/to/groupBy change
@@ -386,7 +399,17 @@ function Dashboard() {
         <button type="button" className="preset-btn" onClick={() => applyDatePreset('7days')}>7 days ago</button>
         <button type="button" className="preset-btn" onClick={() => applyDatePreset('thisMonth')}>This month</button>
         <button type="button" className="preset-btn" onClick={() => applyDatePreset('year')}>Year</button>
-        <button type="button" className="preset-btn" onClick={() => applyDatePreset('byThisDate')}>By this date</button>
+        {/* "By this date" is a date picker, not a fixed preset — every month
+            from Jan 1 through the picked date gets capped to that same
+            day-of-month, so it needs an actual date, not a one-click shortcut */}
+        <label className="preset-btn">
+          By this date{' '}
+          <input
+            type="date"
+            value={byThisDate}
+            onChange={(e) => applyByThisDate(e.target.value)}
+          />
+        </label>
       </div>
 
       {loading && <p>Loading…</p>}
