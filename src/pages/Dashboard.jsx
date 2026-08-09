@@ -399,17 +399,21 @@ function Dashboard() {
         <button type="button" className="preset-btn" onClick={() => applyDatePreset('7days')}>7 days ago</button>
         <button type="button" className="preset-btn" onClick={() => applyDatePreset('thisMonth')}>This month</button>
         <button type="button" className="preset-btn" onClick={() => applyDatePreset('year')}>Year</button>
-        {/* "By this date" is a date picker, not a fixed preset — every month
-            from Jan 1 through the picked date gets capped to that same
-            day-of-month, so it needs an actual date, not a one-click shortcut */}
+        {/* "By this date" is a date picker + explicit Search button, not a
+            one-click preset — picking a date only updates byThisDate, it
+            doesn't touch the chart until Search is clicked, so typing/
+            scrolling through the calendar doesn't fire a fetch per keystroke */}
         <label className="preset-btn">
           By this date{' '}
           <input
             type="date"
             value={byThisDate}
-            onChange={(e) => applyByThisDate(e.target.value)}
+            onChange={(e) => setByThisDate(e.target.value)}
           />
         </label>
+        <button type="button" className="preset-btn" onClick={() => applyByThisDate(byThisDate)}>
+          Search
+        </button>
       </div>
 
       {loading && <p>Loading…</p>}
