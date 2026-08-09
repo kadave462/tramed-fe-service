@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import RevenueChart from '../components/RevenueChart';
 import TopBarChart from '../components/TopBarChart';
+import { weekdayLabel } from '../utils/format';
 
 const API = 'https://david-api-la1t.onrender.com';
 
@@ -442,7 +443,8 @@ function Dashboard() {
               <ul className="scroll-list scroll-list--tight">
                 {revenue.map((row) => (
                   <li key={row.period} className="list-row">
-                    {row.period}: {row.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {groupBy === 'day' ? weekdayLabel(row.period) : row.period}:{' '}
+                    {row.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </li>
                 ))}
               </ul>
@@ -518,6 +520,21 @@ function Dashboard() {
               value={expiringBefore}
               onChange={(e) => setExpiringBefore(e.target.value)}
             />
+            {/* everything already expired, as of today — after is set wide
+                open (the backend's own >= 2020-01-01 floor still applies),
+                before is today itself: the backend query's BETWEEN is
+                inclusive on both ends, so today counts as still expiring,
+                not yet past it */}
+            <button
+              type="button"
+              className="preset-btn"
+              onClick={() => {
+                setExpiringAfter('2000-01-01');
+                setExpiringBefore(toISODate(new Date()));
+              }}
+            >
+              Expired stock
+            </button>
           </div>
 
           {expiringLoading && <p>Loading…</p>}
