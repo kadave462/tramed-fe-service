@@ -120,6 +120,16 @@ function Dashboard() {
       // day would be hundreds of unreadable bars, so this preset also
       // switches groupBy — the other 4 presets leave groupBy alone.
       setGroupBy('month');
+    } else if (preset === 'byThisDate') {
+      // "by this date" — each month capped to its own 1st-through-today's-
+      // day-of-month, so July (fully counted under the plain Year preset)
+      // doesn't look bigger than August just for having more days in it.
+      // groupBy 'month-to-date' is a distinct backend query, not a client-
+      // side filter — see revenuePeriodByMonthToDate in FactSaleRepository.
+      const jan1 = new Date(today.getFullYear(), 0, 1);
+      setFrom(toISODate(jan1));
+      setTo(todayISO);
+      setGroupBy('month-to-date');
     }
   }
 
@@ -366,6 +376,7 @@ function Dashboard() {
           <option value="day">Day</option>
           <option value="week">Week</option>
           <option value="month">Month</option>
+          <option value="month-to-date">Month, by this date</option>
           <option value="year">Year</option>
         </select>
         {/* quick presets — each just calls setFrom/setTo(/setGroupBy) under
@@ -375,6 +386,7 @@ function Dashboard() {
         <button type="button" className="preset-btn" onClick={() => applyDatePreset('7days')}>7 days ago</button>
         <button type="button" className="preset-btn" onClick={() => applyDatePreset('thisMonth')}>This month</button>
         <button type="button" className="preset-btn" onClick={() => applyDatePreset('year')}>Year</button>
+        <button type="button" className="preset-btn" onClick={() => applyDatePreset('byThisDate')}>By this date</button>
       </div>
 
       {loading && <p>Loading…</p>}
