@@ -12,10 +12,21 @@ import { formatCompact } from '../utils/format';
 
 const axisTickStyle = { fill: '#898781', fontSize: 12 };
 
+// period is "YYYY-MM-DD" only when groupBy is 'day' — parsed manually
+// (not new Date(period), which reads that format as UTC midnight and can
+// shift the weekday by one near timezone boundaries) into local Y/M/D,
+// then formatted to a weekday name.
+function weekdayLabel(period) {
+  const [y, m, d] = period.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long' });
+}
+
 // A presentational component: given the revenue array, it draws the chart.
-// It doesn't fetch anything and doesn't know about from/to/groupBy — that
-// stays in App.jsx, which owns the data and just hands it down as a prop.
-function RevenueChart({ data }) {
+// It doesn't fetch anything — from/to stay in Dashboard.jsx, which owns the
+// data and just hands it down as a prop. groupBy IS needed here though,
+// just to decide how to label each point: only 'day' periods parse as a
+// weekday, every other granularity keeps its raw period string.
+function RevenueChart({ data, groupBy }) {
   // A successful fetch that just happens to return zero rows (e.g. a future
   // date range with no sales yet) is not an error — but an empty chart with
   // no explanation reads as broken, so say so directly instead.
@@ -29,9 +40,16 @@ function RevenueChart({ data }) {
         {/* hairline, solid, horizontal-only grid — vertical lines add
             clutter without carrying any extra information here */}
         <CartesianGrid stroke="#e1e0d9" vertical={false} />
-        <XAxis dataKey="period" tick={axisTickStyle} tickLine={false} axisLine={{ stroke: '#c3c2b7' }} />
+        <XAxis
+          dataKey="period"
+          tickFormatter={groupBy === 'day' ? weekdayLabel : undefined}
+          tick={axisTickStyle}
+          tickLine={false}
+          axisLine={{ stroke: '#c3c2b7' }}
+        />
         <YAxis tickFormatter={formatCompact} tick={axisTickStyle} tickLine={false} axisLine={false} />
         <Tooltip
+          labelFormatter={groupBy === 'day' ? (period) => `${weekdayLabel(period)} (${period})` : undefined}
           formatter={(value) =>
             value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
           }

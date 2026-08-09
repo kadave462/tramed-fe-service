@@ -434,7 +434,7 @@ function Dashboard() {
               {/* .chart-col = flex: '2 1 400px' — grows twice as eagerly as the
                   list, but never shrinks below 400px wide before wrapping */}
               <div className="chart-col">
-                <RevenueChart data={revenue} />
+                <RevenueChart data={revenue} groupBy={groupBy} />
               </div>
 
               {/* the exact numbers, scrollable so a long day-by-day list doesn't
