@@ -14,11 +14,15 @@ const axisTickStyle = { fill: '#898781', fontSize: 12 };
 
 // period is "YYYY-MM-DD" only when groupBy is 'day' — parsed manually
 // (not new Date(period), which reads that format as UTC midnight and can
-// shift the weekday by one near timezone boundaries) into local Y/M/D,
-// then formatted to a weekday name.
+// shift the weekday by one near timezone boundaries) into local Y/M/D, then
+// formatted as "Weekday DD MM YYYY" — the raw date stays visible alongside
+// the name instead of being replaced by it.
 function weekdayLabel(period) {
   const [y, m, d] = period.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long' });
+  const weekday = new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long' });
+  const dd = String(d).padStart(2, '0');
+  const mm = String(m).padStart(2, '0');
+  return `${weekday} ${dd} ${mm} ${y}`;
 }
 
 // A presentational component: given the revenue array, it draws the chart.
@@ -49,7 +53,7 @@ function RevenueChart({ data, groupBy }) {
         />
         <YAxis tickFormatter={formatCompact} tick={axisTickStyle} tickLine={false} axisLine={false} />
         <Tooltip
-          labelFormatter={groupBy === 'day' ? (period) => `${weekdayLabel(period)} (${period})` : undefined}
+          labelFormatter={groupBy === 'day' ? weekdayLabel : undefined}
           formatter={(value) =>
             value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
           }
