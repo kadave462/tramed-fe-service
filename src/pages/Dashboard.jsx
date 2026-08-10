@@ -24,11 +24,6 @@ function toISODate(date) {
   return date.toISOString().slice(0, 10);
 }
 
-// January 1st of `date`'s year — the default range's lower bound.
-function startOfYear(date) {
-  return toISODate(new Date(date.getFullYear(), 0, 1));
-}
-
 // idLot ("Documented date") is a 6-digit YYMMDD string, e.g. "251112" =
 // 2025-11-12 — confirmed against the pharmacy's own sale records.
 function parseDocumentedDate(idLot) {
@@ -46,13 +41,17 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);  // still fetching?
   const [error, setError] = useState(null);      // did it fail?
 
-  //  the 3 new memory slots — what the user controls. Defaults to
-  //  Jan 1 of the current year through today, grouped by month — same
-  //  range/granularity as the Year preset below, just applied on load
-  //  instead of requiring a click.
-  const [from, setFrom] = useState(() => startOfYear(new Date()));
+  //  the 3 new memory slots — what the user controls. Defaults to the last
+  //  7 days through today, grouped by day — same range/granularity as the
+  //  "7 days ago" preset below, just applied on load instead of requiring
+  //  a click.
+  const [from, setFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return toISODate(d);
+  });
   const [to, setTo] = useState(() => toISODate(new Date()));
-  const [groupBy, setGroupBy] = useState('month');
+  const [groupBy, setGroupBy] = useState('day');
 
   //  the cutoff date for the "By this date" control below — its own state
   //  since it's a specific date, not one of the 5 fixed presets. Defaults
