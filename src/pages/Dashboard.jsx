@@ -654,8 +654,17 @@ function Dashboard() {
                 // comment above topMoversRanked for why (TRIALGIC).
                 const low = row.daysRemaining !== null && row.daysRemaining < REORDER_DAYS_THRESHOLD;
 
+                // itemId, not productName — the query groups by item_id,
+                // which is what's actually guaranteed unique per row.
+                // productName isn't: the catalog has distinct items
+                // (different itemId, different batch/lot) that happen to
+                // share identical name text — e.g. "ATORVASTATIN 20mg
+                // tablet" is both item 15255 and item 15256. Keying on
+                // the name caused React to confuse the two rows during
+                // re-sorts, since duplicate keys break its reconciliation
+                // — that's what made sorting look broken/stuck.
                 return (
-                  <tr key={row.productName}>
+                  <tr key={row.itemId}>
                     <td>{row.rank}</td>
                     <td>{row.itemId ?? '—'}</td>
                     <td>{row.productName}</td>
