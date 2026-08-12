@@ -175,48 +175,65 @@ function Dashboard() {
     loadRevenue();
   }, [from, to, groupBy]); // re-run whenever any of these change
 
-  //  fetches top-products, top-payers, AND top-movers together via
-  //  Promise.all — all three requests fire at once instead of one waiting
-  //  for the previous one. Only depends on [from, to], not groupBy — none
-  //  of these three endpoints take a groupBy param.
+  //  fetches top-products AND top-payers together via Promise.all — both
+  //  requests fire at once instead of one waiting for the previous one.
+  //  Only depends on [from, to], not groupBy — neither endpoint takes one.
+  //  top-movers used to be a third request bundled in here too, but it's
+  //  all-time now (doesn't use from/to at all) and its query is genuinely
+  //  slow (~8s, scanning the full sales history instead of a date-scoped
+  //  slice) — bundling it meant EVERY date-range change anywhere on the
+  //  page re-ran that 8s query for no reason, and the Top movers table
+  //  unmounted (showed "Loading…") each time, which could eat a sort-header
+  //  click if it landed mid-reload. Split into its own effect below with an
+  //  empty dependency array, so it only ever fetches once, on mount.
   useEffect(() => {
     async function loadTopLists() {
       try {
         setTopProductsLoading(true);
         setTopPayersLoading(true);
-        setTopMoversLoading(true);
-        const [productsRes, payersRes, moversRes] = await Promise.all([
+        const [productsRes, payersRes] = await Promise.all([
           fetch(`${API}/api/v1/analytics/top-products?from=${from}&to=${to}`),
           fetch(`${API}/api/v1/analytics/top-payers?from=${from}&to=${to}`),
-          // No from/to — top-movers is all-time now (see the backend query's
-          // own comment for why), so it doesn't actually depend on the
-          // shared date range this effect is keyed on. 20000 is comfortably
-          // above the entire product catalog (~16,809 products) — the query
-          // can only ever return one row per product with any sale, ever,
-          // so this limit can never be the thing truncating the list.
-          fetch(`${API}/api/v1/analytics/top-movers?limit=20000`),
         ]);
         if (!productsRes.ok) throw new Error(`HTTP ${productsRes.status}`);
         if (!payersRes.ok) throw new Error(`HTTP ${payersRes.status}`);
-        if (!moversRes.ok) throw new Error(`HTTP ${moversRes.status}`);
         const productsData = await productsRes.json();
         const payersData = await payersRes.json();
-        const moversData = await moversRes.json();
         setTopProducts(productsData);
         setTopPayers(payersData);
-        setTopMovers(moversData);
       } catch (err) {
         setTopProductsError(err.message);
         setTopPayersError(err.message);
-        setTopMoversError(err.message);
       } finally {
         setTopProductsLoading(false);
         setTopPayersLoading(false);
-        setTopMoversLoading(false);
       }
     }
     loadTopLists();
   }, [from, to]);
+
+  //  all-time, fetched once on mount — see the comment above for why this
+  //  is split out from top-products/top-payers instead of sharing their
+  //  [from, to]-keyed effect. 20000 is comfortably above the entire product
+  //  catalog (~16,809 products) — the query can only ever return one row
+  //  per product with any sale, ever, so this limit can never be the thing
+  //  truncating the list.
+  useEffect(() => {
+    async function loadTopMovers() {
+      try {
+        setTopMoversLoading(true);
+        const res = await fetch(`${API}/api/v1/analytics/top-movers?limit=20000`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setTopMovers(data);
+      } catch (err) {
+        setTopMoversError(err.message);
+      } finally {
+        setTopMoversLoading(false);
+      }
+    }
+    loadTopMovers();
+  }, []);
 
   //  independent of everything above — this is its own date range, not the
   //  shared from/to, so it gets its own effect keyed on
