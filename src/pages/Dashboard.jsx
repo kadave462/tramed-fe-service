@@ -11,7 +11,7 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 // cutoff, which couldn't tell a lot that's genuinely about to run out from
 // one that's just small and barely selling (see TRIALGIC: 29% remaining
 // but ~9 months to get there — not urgent at that pace).
-const REORDER_DAYS_THRESHOLD = 14;
+const REORDER_DAYS_THRESHOLD = 7;
 
 // Must match --danger/--good in index.css. Kept as separate JS constants
 // rather than reading the CSS variables at runtime, because Recharts sets
@@ -188,11 +188,13 @@ function Dashboard() {
         const [productsRes, payersRes, moversRes] = await Promise.all([
           fetch(`${API}/api/v1/analytics/top-products?from=${from}&to=${to}`),
           fetch(`${API}/api/v1/analytics/top-payers?from=${from}&to=${to}`),
-          // 20000 is comfortably above the entire product catalog (~16,809
-          // products) — the query can only ever return one row per product
-          // that had a sale in range, so this limit can never be the thing
-          // truncating the list, no matter how the sales pattern grows.
-          fetch(`${API}/api/v1/analytics/top-movers?from=${from}&to=${to}&limit=20000`),
+          // No from/to — top-movers is all-time now (see the backend query's
+          // own comment for why), so it doesn't actually depend on the
+          // shared date range this effect is keyed on. 20000 is comfortably
+          // above the entire product catalog (~16,809 products) — the query
+          // can only ever return one row per product with any sale, ever,
+          // so this limit can never be the thing truncating the list.
+          fetch(`${API}/api/v1/analytics/top-movers?limit=20000`),
         ]);
         if (!productsRes.ok) throw new Error(`HTTP ${productsRes.status}`);
         if (!payersRes.ok) throw new Error(`HTTP ${payersRes.status}`);
@@ -338,9 +340,13 @@ function Dashboard() {
     { key: 'liveQuantity', label: 'Live qty' },
     { key: 'pctRemaining', label: '% remaining' },
     { key: 'depletionRatePerDay', label: '% of lot sold / day' },
+    { key: 'daysRemaining', label: 'Days remaining' },
     { key: 'idLot', label: 'Documented date' },
     { key: 'expirationDate', label: 'Expiration date' },
     { key: 'lastSale', label: 'Last sale' },
+    { key: 'cost', label: 'Cost' },
+    { key: 'avgPrice', label: 'Avg price' },
+    { key: 'totalRevenue', label: 'Revenue' },
     { key: 'profit', label: 'Profit' },
   ];
 
@@ -646,9 +652,21 @@ function Dashboard() {
                       {row.depletionRatePerDay !== null ? `${row.depletionRatePerDay.toFixed(2)}%/day` : '—'}
                       {low && ' — Reorder'}
                     </td>
+                    <td>{row.daysRemaining !== null ? row.daysRemaining.toFixed(1) : '—'}</td>
                     <td>{row.idLot ?? '—'}</td>
                     <td>{row.expirationDate ?? '—'}</td>
                     <td>{row.lastSale ?? '—'}</td>
+                    <td>
+                      {row.cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td>
+                      {row.avgPrice !== null
+                        ? row.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        : '—'}
+                    </td>
+                    <td>
+                      {row.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
                     <td>
                       {row.profit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
