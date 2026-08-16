@@ -331,13 +331,20 @@ function Dashboard() {
       const avgPrice = row.totalQuantity ? row.totalRevenue / row.totalQuantity : null;
 
       const documentedDate = parseDocumentedDate(row.idLot);
+      // How long the current stock has actually been sitting there — same
+      // documented-date anchor as the depletion math below, but exposed on
+      // its own so it still shows for Out of Stock rows (which have no
+      // initialQuantity to gate the depletion calc on) as long as there's a
+      // fallback documented date at all.
+      const daysInStock = documentedDate
+        ? Math.max(1, Math.round((Date.now() - documentedDate.getTime()) / MS_PER_DAY))
+        : null;
       let depletionRatePerDay = null;
       let daysRemaining = null;
       if (documentedDate && row.initialQuantity) {
-        const daysSince = Math.max(1, Math.round((Date.now() - documentedDate.getTime()) / MS_PER_DAY));
         const unitsSold = Math.max(0, row.initialQuantity - row.liveQuantity);
-        const unitsPerDay = unitsSold / daysSince;
-        depletionRatePerDay = (unitsSold / row.initialQuantity / daysSince) * 100;
+        const unitsPerDay = unitsSold / daysInStock;
+        depletionRatePerDay = (unitsSold / row.initialQuantity / daysInStock) * 100;
         daysRemaining = unitsPerDay > 0 ? row.liveQuantity / unitsPerDay : null;
       }
 
@@ -348,6 +355,7 @@ function Dashboard() {
         avgPrice,
         depletionRatePerDay,
         daysRemaining,
+        daysInStock,
         // backend sends full ISO timestamps for both — trim to plain dates,
         // same trick as expiringWithPct above.
         expirationDate: row.expirationDate?.split('T')[0],
@@ -382,6 +390,7 @@ function Dashboard() {
     { key: 'newestIdLot', label: 'Newest documented date' },
     { key: 'newestExpirationDate', label: 'Newest expiration date' },
     { key: 'lastSale', label: 'Last sale' },
+    { key: 'daysInStock', label: 'Days in stock' },
     { key: 'cost', label: 'Cost' },
     { key: 'avgPrice', label: 'Avg price' },
     { key: 'totalRevenue', label: 'Revenue' },
@@ -668,10 +677,15 @@ function Dashboard() {
                     col.key === 'itemId' ? ' sticky-col sticky-col-1'
                     : col.key === 'productName' ? ' sticky-col sticky-col-2'
                     : '';
+                  // the newest-live-lot pair is secondary/informational next
+                  // to the main Documented/Expiration columns — greyed out
+                  // so the eye lands on the primary pair first.
+                  const mutedClass =
+                    col.key === 'newestIdLot' || col.key === 'newestExpirationDate' ? ' text-muted' : '';
                   return (
                     <th
                       key={col.key}
-                      className={`sortable${stickyClass}`}
+                      className={`sortable${stickyClass}${mutedClass}`}
                       onClick={() => handleMoversSort(col.key)}
                     >
                       {col.label}
@@ -729,9 +743,10 @@ function Dashboard() {
                     <td>{row.daysRemaining !== null ? row.daysRemaining.toFixed(1) : '—'}</td>
                     <td>{row.idLot ?? '—'}</td>
                     <td>{row.expirationDate ?? '—'}</td>
-                    <td>{row.newestIdLot ?? '—'}</td>
-                    <td>{row.newestExpirationDate ?? '—'}</td>
+                    <td className="text-muted">{row.newestIdLot ?? '—'}</td>
+                    <td className="text-muted">{row.newestExpirationDate ?? '—'}</td>
                     <td>{row.lastSale ?? '—'}</td>
+                    <td>{row.daysInStock ?? '—'}</td>
                     <td>
                       {row.cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>

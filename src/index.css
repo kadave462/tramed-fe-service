@@ -386,6 +386,13 @@ td:not(:first-child) {
   font-variant-numeric: tabular-nums;
 }
 
+/* Newest documented/expiration date is a secondary, informational pair next
+   to the main Documented/Expiration columns (which drive the depletion-rate
+   math) — greying it out signals "reference only" at a glance. */
+td.text-muted {
+  color: var(--text-muted);
+}
+
 /* status color (critical), reserved — never reused as a categorical series
    color. Paired with a text label in the cell itself, never color alone.
    Two names, same style: .pct-low flags "running out" (Top movers table),
