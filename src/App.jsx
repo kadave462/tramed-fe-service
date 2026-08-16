@@ -2,10 +2,14 @@ import { useState, useEffect } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import Forecast from './pages/Forecast';
-
-const API = 'https://david-api-la1t.onrender.com';
+import Login from './pages/Login';
+import ProtectedRoute from './components/ProtectedRoute';
+import { authFetch } from './utils/api';
+import { useAuth } from './context/useAuth';
 
 function App() {
+  const { authed, logout } = useAuth();
+
   // No loading/error state here on purpose — this is footer chrome, not a
   // panel the user is waiting on. If it fails to load, the footer just
   // doesn't render; nothing about the rest of the app should be blocked or
@@ -13,9 +17,10 @@ function App() {
   const [status, setStatus] = useState(null);
 
   useEffect(() => {
+    if (!authed) return; // no point calling a protected endpoint pre-login
     async function loadStatus() {
       try {
-        const res = await fetch(`${API}/api/v1/warehouse/status`);
+        const res = await authFetch('/api/v1/warehouse/status');
         if (!res.ok) return;
         const data = await res.json();
         setStatus(data);
@@ -24,17 +29,21 @@ function App() {
       }
     }
     loadStatus();
-  }, []); // run once when the app first loads — not tied to any date range
+  }, [authed]); // re-run once auth flips true, not tied to any date range
 
   return (
     <>
-      <nav className="nav">
-        <Link to="/">Dashboard</Link>
-        <Link to="/forecast">Forecast</Link>
-      </nav>
+      {authed && (
+        <nav className="nav">
+          <Link to="/">Dashboard</Link>
+          <Link to="/forecast">Forecast</Link>
+          <button type="button" className="nav-logout" onClick={logout}>Log out</button>
+        </nav>
+      )}
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/forecast" element={<Forecast />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/forecast" element={<ProtectedRoute><Forecast /></ProtectedRoute>} />
       </Routes>
       {status && (
         <footer className="app-footer">

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-
-const API = 'https://david-api-la1t.onrender.com';
+import { authFetch } from '../utils/api';
 
 function Forecast() {
   const [days, setDays] = useState(30);
@@ -13,7 +12,7 @@ function Forecast() {
     async function loadStockForecast() {
       try {
         setStockForecastLoading(true);
-        const res = await fetch(`${API}/api/v1/analytics/stock-forecast?days=${days}`);
+        const res = await authFetch(`/api/v1/analytics/stock-forecast?days=${days}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         setStockForecast(data);
