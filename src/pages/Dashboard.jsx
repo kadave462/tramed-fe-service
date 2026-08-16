@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import RevenueChart from '../components/RevenueChart';
 import TopBarChart from '../components/TopBarChart';
 import { weekdayLabel } from '../utils/format';
-
-const API = 'https://david-api-la1t.onrender.com';
+import { authFetch } from '../utils/api';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 // below this many estimated days-of-stock-left (at the current depletion
@@ -160,8 +159,8 @@ function Dashboard() {
     async function loadRevenue() {
       try {
         setLoading(true); // show "Loading…" again on every re-fetch, not just the first
-        const res = await fetch(
-          `${API}/api/v1/analytics/revenue?from=${from}&to=${to}&groupBy=${groupBy}`
+        const res = await authFetch(
+          `/api/v1/analytics/revenue?from=${from}&to=${to}&groupBy=${groupBy}`
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -192,8 +191,8 @@ function Dashboard() {
         setTopProductsLoading(true);
         setTopPayersLoading(true);
         const [productsRes, payersRes] = await Promise.all([
-          fetch(`${API}/api/v1/analytics/top-products?from=${from}&to=${to}`),
-          fetch(`${API}/api/v1/analytics/top-payers?from=${from}&to=${to}`),
+          authFetch(`/api/v1/analytics/top-products?from=${from}&to=${to}`),
+          authFetch(`/api/v1/analytics/top-payers?from=${from}&to=${to}`),
         ]);
         if (!productsRes.ok) throw new Error(`HTTP ${productsRes.status}`);
         if (!payersRes.ok) throw new Error(`HTTP ${payersRes.status}`);
@@ -222,7 +221,7 @@ function Dashboard() {
     async function loadTopMovers() {
       try {
         setTopMoversLoading(true);
-        const res = await fetch(`${API}/api/v1/analytics/top-movers?limit=20000`);
+        const res = await authFetch(`/api/v1/analytics/top-movers?limit=20000`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         setTopMovers(data);
@@ -242,8 +241,8 @@ function Dashboard() {
     async function loadExpiringStock() {
       try {
         setExpiringLoading(true);
-        const res = await fetch(
-          `${API}/api/v1/analytics/expiring-stock?after=${expiringAfter}&before=${expiringBefore}`
+        const res = await authFetch(
+          `/api/v1/analytics/expiring-stock?after=${expiringAfter}&before=${expiringBefore}`
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -353,6 +352,9 @@ function Dashboard() {
         // same trick as expiringWithPct above.
         expirationDate: row.expirationDate?.split('T')[0],
         lastSale: row.lastSale?.slice(0, 10),
+        // the newest LIVE lot's own dates — null whenever nothing is live,
+        // same trimming as expirationDate above when it's present.
+        newestExpirationDate: row.newestExpirationDate?.split('T')[0] ?? null,
       };
     })
     .sort((a, b) => (b.depletionRatePerDay ?? -1) - (a.depletionRatePerDay ?? -1))
@@ -369,6 +371,8 @@ function Dashboard() {
     { key: 'daysRemaining', label: 'Days remaining' },
     { key: 'idLot', label: 'Documented date' },
     { key: 'expirationDate', label: 'Expiration date' },
+    { key: 'newestIdLot', label: 'Newest documented date' },
+    { key: 'newestExpirationDate', label: 'Newest expiration date' },
     { key: 'lastSale', label: 'Last sale' },
     { key: 'cost', label: 'Cost' },
     { key: 'avgPrice', label: 'Avg price' },
@@ -704,6 +708,8 @@ function Dashboard() {
                     <td>{row.daysRemaining !== null ? row.daysRemaining.toFixed(1) : '—'}</td>
                     <td>{row.idLot ?? '—'}</td>
                     <td>{row.expirationDate ?? '—'}</td>
+                    <td>{row.newestIdLot ?? '—'}</td>
+                    <td>{row.newestExpirationDate ?? '—'}</td>
                     <td>{row.lastSale ?? '—'}</td>
                     <td>
                       {row.cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
