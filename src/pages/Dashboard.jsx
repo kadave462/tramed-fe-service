@@ -595,30 +595,34 @@ function Dashboard() {
             >
               Expired stock
             </button>
-            {/* today through the last day of the current calendar month —
-                not the whole month start-to-end, since anything before
-                today already expired and belongs in the button above */}
+            {/* today through the 1st of NEXT month, not the 30th/31st of
+                this one — using "day 0 of next month" to land on the last
+                day of this month is exactly the kind of date-math that gets
+                the day count wrong depending on how long the month is;
+                the 1st of next month sidesteps that entirely, at the cost
+                of the query's inclusive BETWEEN also picking up anything
+                expiring exactly on the 1st itself */}
             <button
               type="button"
               className="preset-btn"
               onClick={() => {
                 const today = new Date();
-                const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                const firstOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
                 setExpiringAfter(toISODate(today));
-                setExpiringBefore(toISODate(endOfMonth));
+                setExpiringBefore(toISODate(firstOfNextMonth));
               }}
             >
               This month
             </button>
-            {/* today through Dec 31 of the current year */}
+            {/* today through Jan 1 of NEXT year, same reasoning as above */}
             <button
               type="button"
               className="preset-btn"
               onClick={() => {
                 const today = new Date();
-                const endOfYear = new Date(today.getFullYear(), 11, 31);
+                const firstOfNextYear = new Date(today.getFullYear() + 1, 0, 1);
                 setExpiringAfter(toISODate(today));
-                setExpiringBefore(toISODate(endOfYear));
+                setExpiringBefore(toISODate(firstOfNextYear));
               }}
             >
               This year
