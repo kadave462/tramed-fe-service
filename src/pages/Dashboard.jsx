@@ -318,6 +318,14 @@ function Dashboard() {
       // ever updating that starting count — confirmed on METFORMINE SR
       // 1000mg (item 15716), live 40 vs initial 30. Showing "133% remaining"
       // is nonsensical; capping treats it as fully stocked instead.
+      // initialQuantity is 0 only when the backend found no live lots at
+      // all for this product (see FactSaleRepository.topProductsByQuantity)
+      // — a deliberate "0/0" rather than falling back to the full historical
+      // sum, so this is a clean, explicit signal rather than something to
+      // infer from a percentage. Handled as its own state below instead of
+      // computing a depletion rate from a zero baseline.
+      const outOfStock = row.initialQuantity === 0 && row.liveQuantity === 0;
+
       const pctRemaining = row.initialQuantity
         ? Math.min(100, (row.liveQuantity / row.initialQuantity) * 100)
         : null;
@@ -336,6 +344,7 @@ function Dashboard() {
 
       return {
         ...row,
+        outOfStock,
         pctRemaining,
         avgPrice,
         depletionRatePerDay,
@@ -671,12 +680,26 @@ function Dashboard() {
                     <td>{row.totalQuantity.toLocaleString('en-US')}</td>
                     <td>{row.initialQuantity ?? '—'}</td>
                     <td>{row.liveQuantity ?? '—'}</td>
-                    <td>{row.pctRemaining !== null ? `${row.pctRemaining.toFixed(0)}%` : '—'}</td>
-                    {/* red is never the only signal — "Reorder" is the real
-                        flag; color just makes it faster to spot at a glance */}
-                    <td className={low ? 'pct-low' : ''}>
-                      {row.depletionRatePerDay !== null ? `${row.depletionRatePerDay.toFixed(2)}%/day` : '—'}
-                      {low && ' — Reorder'}
+                    <td className={row.outOfStock ? 'pct-low' : ''}>
+                      {row.outOfStock
+                        ? 'Out of Stock'
+                        : row.pctRemaining !== null
+                          ? `${row.pctRemaining.toFixed(0)}%`
+                          : '—'}
+                    </td>
+                    {/* red is never the only signal — "Reorder"/"Out of
+                        Stock" is the real flag; color just makes it faster
+                        to spot at a glance. Out of Stock (initial=0, no live
+                        lots at all) is distinct from Reorder (a real lot
+                        that's running low) — there's no depletion rate to
+                        show when there's no baseline lot to measure from. */}
+                    <td className={low || row.outOfStock ? 'pct-low' : ''}>
+                      {row.outOfStock
+                        ? 'Out of Stock'
+                        : row.depletionRatePerDay !== null
+                          ? `${row.depletionRatePerDay.toFixed(2)}%/day`
+                          : '—'}
+                      {low && !row.outOfStock && ' — Reorder'}
                     </td>
                     <td>{row.daysRemaining !== null ? row.daysRemaining.toFixed(1) : '—'}</td>
                     <td>{row.idLot ?? '—'}</td>
