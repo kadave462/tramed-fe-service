@@ -331,14 +331,16 @@ function Dashboard() {
       const avgPrice = row.totalQuantity ? row.totalRevenue / row.totalQuantity : null;
 
       const documentedDate = parseDocumentedDate(row.idLot);
-      // How long the current stock has actually been sitting there — same
-      // documented-date anchor as the depletion math below, but exposed on
-      // its own so it still shows for Out of Stock rows (which have no
-      // initialQuantity to gate the depletion calc on) as long as there's a
-      // fallback documented date at all.
-      const daysInStock = documentedDate
-        ? Math.max(1, Math.round((Date.now() - documentedDate.getTime()) / MS_PER_DAY))
-        : null;
+      // How long the current stock has actually been sitting there. Out of
+      // Stock rows have no live lot at all — idLot there is just the last
+      // dead lot's date, kept around for reference (see Documented Date),
+      // not stock that's actually "in stock" right now — so this is 0, not
+      // the age of a lot that's already been fully sold/emptied out.
+      const daysInStock = outOfStock
+        ? 0
+        : documentedDate
+          ? Math.max(1, Math.round((Date.now() - documentedDate.getTime()) / MS_PER_DAY))
+          : null;
       let depletionRatePerDay = null;
       let daysRemaining = null;
       if (documentedDate && row.initialQuantity) {
