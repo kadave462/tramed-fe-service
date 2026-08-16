@@ -427,3 +427,39 @@ td:not(:first-child) {
 tr:last-child td {
   border-bottom: none;
 }
+
+/* Top movers has 14 columns, wider than any viewport, so it scrolls
+   horizontally — without this, scrolling right to see dates/revenue loses
+   track of which product each row belongs to. Pinning Item ID and Product
+   keeps just that identifying pair on screen, like a spreadsheet's frozen
+   panes; fixed widths are required so the left offsets stay accurate
+   regardless of content length (overflow is truncated with an ellipsis —
+   the full product name is still available via the title attribute). */
+.sticky-col {
+  position: sticky;
+  background: var(--surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sticky-col-1 {
+  left: 0;
+  width: 70px;
+  max-width: 70px;
+}
+
+.sticky-col-2 {
+  left: 70px;
+  width: 220px;
+  max-width: 220px;
+  box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.15);
+}
+
+/* header sticky-col cells are pinned both top (from .table-scroll thead th)
+   and left at once — need to sit above every other cell, including the
+   left-pinned body cells scrolling underneath as the header itself scrolls
+   vertically out and back into view. */
+.table-scroll thead th.sticky-col {
+  z-index: 2;
+}

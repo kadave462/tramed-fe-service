@@ -353,8 +353,16 @@ function Dashboard() {
         expirationDate: row.expirationDate?.split('T')[0],
         lastSale: row.lastSale?.slice(0, 10),
         // the newest LIVE lot's own dates — null whenever nothing is live,
-        // same trimming as expirationDate above when it's present.
-        newestExpirationDate: row.newestExpirationDate?.split('T')[0] ?? null,
+        // same trimming as expirationDate above when it's present. When
+        // there's only one live lot, "oldest live" and "newest live" are
+        // the same lot, so newestIdLot/newestExpirationDate come back
+        // identical to idLot/expirationDate — showing that pair twice adds
+        // nothing, so blank them out (rendered as "—") instead.
+        newestIdLot: row.newestIdLot && row.newestIdLot !== row.idLot ? row.newestIdLot : null,
+        newestExpirationDate:
+          row.newestExpirationDate && row.newestExpirationDate.split('T')[0] !== row.expirationDate?.split('T')[0]
+            ? row.newestExpirationDate.split('T')[0]
+            : null,
       };
     })
     .sort((a, b) => (b.depletionRatePerDay ?? -1) - (a.depletionRatePerDay ?? -1))
@@ -652,12 +660,25 @@ function Dashboard() {
             <thead>
               <tr>
                 <th>#</th>
-                {moverColumns.map((col) => (
-                  <th key={col.key} className="sortable" onClick={() => handleMoversSort(col.key)}>
-                    {col.label}
-                    {moversSortKey === col.key && (moversSortDir === 'asc' ? ' ▲' : ' ▼')}
-                  </th>
-                ))}
+                {moverColumns.map((col) => {
+                  // Item ID and Product stay pinned during horizontal scroll
+                  // (14 columns is wider than any viewport) so a row's
+                  // identity never scrolls out of view along with it.
+                  const stickyClass =
+                    col.key === 'itemId' ? ' sticky-col sticky-col-1'
+                    : col.key === 'productName' ? ' sticky-col sticky-col-2'
+                    : '';
+                  return (
+                    <th
+                      key={col.key}
+                      className={`sortable${stickyClass}`}
+                      onClick={() => handleMoversSort(col.key)}
+                    >
+                      {col.label}
+                      {moversSortKey === col.key && (moversSortDir === 'asc' ? ' ▲' : ' ▼')}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -679,8 +700,8 @@ function Dashboard() {
                 return (
                   <tr key={row.itemId}>
                     <td>{row.rank}</td>
-                    <td>{row.itemId ?? '—'}</td>
-                    <td>{row.productName}</td>
+                    <td className="sticky-col sticky-col-1">{row.itemId ?? '—'}</td>
+                    <td className="sticky-col sticky-col-2" title={row.productName}>{row.productName}</td>
                     <td>{row.totalQuantity.toLocaleString('en-US')}</td>
                     <td>{row.initialQuantity ?? '—'}</td>
                     <td>{row.liveQuantity ?? '—'}</td>
