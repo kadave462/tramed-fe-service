@@ -593,6 +593,34 @@ function Dashboard() {
             >
               Expired stock
             </button>
+            {/* today through the last day of the current calendar month —
+                not the whole month start-to-end, since anything before
+                today already expired and belongs in the button above */}
+            <button
+              type="button"
+              className="preset-btn"
+              onClick={() => {
+                const today = new Date();
+                const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                setExpiringAfter(toISODate(today));
+                setExpiringBefore(toISODate(endOfMonth));
+              }}
+            >
+              This month
+            </button>
+            {/* today through Dec 31 of the current year */}
+            <button
+              type="button"
+              className="preset-btn"
+              onClick={() => {
+                const today = new Date();
+                const endOfYear = new Date(today.getFullYear(), 11, 31);
+                setExpiringAfter(toISODate(today));
+                setExpiringBefore(toISODate(endOfYear));
+              }}
+            >
+              This year
+            </button>
           </div>
 
           {expiringLoading && <p>Loading…</p>}
